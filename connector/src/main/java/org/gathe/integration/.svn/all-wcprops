@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration
+END
+ActionThread.java
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/ActionThread.java
+END
+Connector.java
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/Connector.java
+END
+ResponseThread.java
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/ResponseThread.java
+END
+BaseAccessor.java
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/BaseAccessor.java
+END
+Accessor.java
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/Accessor.java
+END
+AsyncAccessor.java
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/connector/!svn/ver/10/trunk/src/main/java/ru/spb/herzen/integration/AsyncAccessor.java
+END
