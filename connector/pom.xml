@@ -6,7 +6,7 @@
 
     <groupId>org.gathe.integration</groupId>
     <artifactId>connector</artifactId>
-    <version>0.3</version>
+    <version>0.5</version>
     <dependencies>
         <dependency>
             <groupId>log4j</groupId>

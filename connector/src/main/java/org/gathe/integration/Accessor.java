@@ -3,6 +3,7 @@ package org.gathe.integration;
 import org.w3c.dom.Document;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Created by zolotov on 01.11.13.
@@ -12,16 +13,16 @@ public interface Accessor {
     public void setConnector(Connector connector);
 
     //get endpoint schema
-    public HashMap<String, HashMap<String, String>> getSchema();
+    public List<DataClass> getSchema();
 
     //get object description from endpoint
     public Document get(String transactionId, String className, String uuid);
 
     //update object description from endpoint
-    public Document update(String transactionId, String className, String uuid, String data);
+    public boolean update(String transactionId, String className, String uuid, String data);
 
     //remove object from endpoint
-    public Document remove(String transactionId, String className, String uuid);
+    public boolean remove(String transactionId, String className, String uuid);
 
     //get UUID by identifier (seek)
     public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue);

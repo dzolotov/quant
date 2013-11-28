@@ -7,10 +7,10 @@ import org.apache.log4j.Logger;
  */
 public class ActionThread extends Thread {
 
-    private Logger LOG = Logger.getLogger(this.getClass());
-    private int timeout;
+    private final Logger LOG = Logger.getLogger(this.getClass());
+    private final int timeout;
     private boolean accepted;
-    private String action;
+    private final String action;
 
     public ActionThread(String action, int timeout) {
         this.timeout = timeout;
@@ -19,10 +19,6 @@ public class ActionThread extends Thread {
 
     public boolean isAccepted() {
         return accepted;
-    }
-
-    public String getAction() {
-        return action;
     }
 
     public void run() {
