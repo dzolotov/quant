@@ -6,7 +6,6 @@ import org.apache.qpid.amqp_1_0.jms.Session;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
@@ -17,16 +16,29 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import java.io.StringWriter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Created by zolotov on 01.11.13.
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
  */
 public class Connector extends Thread {
 
@@ -44,9 +56,12 @@ public class Connector extends Thread {
     private String id;
     private Accessor accessor;
     private Logger LOG = Logger.getLogger(this.getClass());
-    private HashMap<String, String> getResponse = new HashMap<String, String>();
-    private HashMap<String, Thread> responseThreads = new HashMap<String, Thread>();
+    private ConcurrentHashMap<String, String> getResponse = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Thread> responseThreads = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, HashMap<String,String>> updatePatches = new ConcurrentHashMap<>();
+
     private boolean isDisconnected;
+
     List<DataClass> schema = new ArrayList<>();
 
     ArrayList<String> uuidCommands = new ArrayList<String>();
@@ -114,16 +129,16 @@ public class Connector extends Thread {
         for (DataClass schemaClass : schemaDescription) {
 
             String schemaKey = schemaClass.getClassName();
-            LOG.info("Parsing schema: "+schemaKey);
+            LOG.info("Parsing schema: " + schemaKey);
 
             Element classElement = schema.createElement("class");
             classElement.setAttribute("id", schemaKey);
-            if (schemaClass.getExtendClassName()!=null) {
-                classElement.setAttribute("extends",schemaClass.getExtendClassName());
-                LOG.info("Extends: "+schemaClass.getExtendClassName());
+            if (schemaClass.getExtendClassName() != null) {
+                classElement.setAttribute("extends", schemaClass.getExtendClassName());
+                LOG.info("Extends: " + schemaClass.getExtendClassName());
             }
-            if (schemaClass.isReadOnly()) classElement.setAttribute("readonly","true");
-            if (schemaClass.isSpecifiability()) classElement.setAttribute("specifiable","true");
+            if (schemaClass.isReadOnly()) classElement.setAttribute("readonly", "true");
+            if (schemaClass.isSpecifiability()) classElement.setAttribute("specifiable", "true");
 
             Iterator<DataElement> dataElement = schemaClass.getElements();
             while (dataElement.hasNext()) {
@@ -341,6 +356,7 @@ public class Connector extends Thread {
                             sendTextMessage("hello." + this.id, resultString.toString());
                             textMessage.acknowledge();
                             break;
+
                         case "ping":
                             TextMessage pingResponse = session.createTextMessage();
                             pingResponse.setStringProperty("transactionId", textMessage.getStringProperty("transactionId"));
@@ -355,11 +371,10 @@ public class Connector extends Thread {
                             String className = keyParts[1];
                             String uuid = textMessage.getStringProperty("uuid");
                             String target = textMessage.getStringProperty("target");
-                            LOG.debug("Get request for class: " + className + " with uuid: " + uuid+" (target: "+target+")");
+                            LOG.debug("Get request for class: " + className + " with uuid: " + uuid + " (target: " + target + ")");
 
                             new GetThread(textMessage, className, uuid).start();
                             textMessage.acknowledge();
-                            LOG.debug("Thread released");
                             break;
 
                         case "unify":
@@ -369,7 +384,6 @@ public class Connector extends Thread {
 
                             new UnifyThread(textMessage, className, identifierName, identifierValue).start();
                             textMessage.acknowledge();
-                            LOG.debug("Thread released");
                             break;
 
                         case "check":
@@ -379,7 +393,6 @@ public class Connector extends Thread {
 
                             new CheckThread(textMessage, className, identifierName, identifierValue).start();
                             textMessage.acknowledge();
-                            LOG.debug("Thread released");
                             break;
 
                         case "identify":
@@ -389,7 +402,6 @@ public class Connector extends Thread {
 
                             new IdentifyThread(textMessage, className, identifierName, uuidValue).start();
                             textMessage.acknowledge();
-                            LOG.debug("Identify thread released");
                             break;
 
                         case "specify":
@@ -401,6 +413,17 @@ public class Connector extends Thread {
 
                             new SpecifyThread(textMessage, generalClassName, uuid).start();
                             textMessage.acknowledge();
+                            break;
+
+                        case "validate":
+                            LOG.debug("Request for validate");
+                            className = keyParts[1];
+                            String data = textMessage.getText();
+                            uuid = textMessage.getStringProperty("uuid");
+                            LOG.info("Validating "+uuid);
+                            new ValidateThread(textMessage, className, uuid, data).start();
+                            textMessage.acknowledge();
+                            break;
 
                         default:
                             if (keyParts[0].equalsIgnoreCase(id)) {
@@ -412,10 +435,7 @@ public class Connector extends Thread {
                                         getResponse.put(messageId, "" + textMessage.getText());
                                         responseThreads.get(messageId).interrupt();
                                     }
-                                    // else {
-                                    //                            new ResponseThread((AsyncAccessor) accessor, messageId, ""+textMessage.getText()).start();
-                                    //                        }
-                                }
+                                 }
                             }
                             textMessage.acknowledge();
                     }
@@ -439,6 +459,23 @@ public class Connector extends Thread {
             super();
         }
 
+        private void buildSubSchema(String[] classNames, int minIndex, int maxIndex, UpdateHelper helper, List<DataClass> schema) {
+            helper.resetSchema();
+            for (int i = minIndex; i <= maxIndex; i++) {
+                String clName = classNames[i];
+                for (DataClass schemaElement : schema) {
+                    if (schemaElement.getClassName().equalsIgnoreCase(clName)) {
+                        //add all the elements of class to subschema
+                        Iterator<DataElement> ide = schemaElement.getElements();
+                        while (ide.hasNext()) {
+                            helper.addElementToSchema(ide.next());
+                        }
+                    }
+                }
+            }
+        }
+
+
         public void run() {
             while (!isDisconnected) {
                 try {
@@ -459,33 +496,92 @@ public class Connector extends Thread {
                     String action = keyParts[0].toLowerCase();
                     switch (action) {
                         case "update":
-                            String transactionId = textMessage.getStringProperty("transactionId");
-                            String className = keyParts[1];        //todo: add specify
-                            String uuid = textMessage.getStringProperty("uuid");
+
                             String data = textMessage.getText();
-                            //synchronously execute accessor update
-//                            className = specify(transactionId, className, uuid, false);
-                            if (accessor.update(transactionId, className, uuid, data)) {
-                                //confirm message
-                                textMessage.acknowledge();
-                            } else {
-                                LOG.info("Problem when processing " + className + "." + uuid);
-                            }
-                            ;
+                            String transactionId = textMessage.getStringProperty("transactionId");
+                            String uuid = textMessage.getStringProperty("uuid");
+                            LOG.info("Updating "+uuid);
+                            UpdateHelper updateHelper = new UpdateHelper(uuid, transactionId);
+                            updateHelper.transformFromXML(data);
+                            //store patch
+                            updatePatches.put(uuid, updateHelper.getPatch());
+
+                            List<DataClass> schema = accessor.getSchema();        //todo: optimize!!!
+                            String target = textMessage.getStringProperty("target");    //target classes
+                            LOG.info("Target: " + target);
+                            String targets[] = target.split(",");
+                            ArrayList<String> appliedClasses = new ArrayList<>();
+                            for (int i = targets.length - 1; i >= 0; i--) {
+                                LOG.info("i=" + i);
+                                LOG.info("TargetLength: " + targets.length);
+                                LOG.info("Checking entry " + targets[i]);
+                                //reverse order - to high priority
+                                String[] classNames = targets[i].split("-");        //parse from top to bottom (specialize)
+
+                                LOG.info("ClassNames: " + classNames);
+
+                                //search in reverse order to last monolithic class
+                                int k = -1;
+                                for (int j = classNames.length - 1; j >= 0; j--) {
+                                    String clName = classNames[j];
+                                    LOG.info("ClName: " + clName);
+                                    for (DataClass schemaElement : schema) {
+                                        LOG.info("Checking class path: " + schemaElement.getClassName());
+                                        if (schemaElement.getClassName().equalsIgnoreCase(clName) && schemaElement.isMonolithic() == true) {
+                                            k = j;        //store monolithic entry
+                                            break;
+                                        }
+                                    }
+                                    if (k >= 0) break;
+                                }
+
+                                if (k >= 0) {
+                                    LOG.info("Found monolithic entry " + classNames[k]);
+                                    if (!appliedClasses.contains(classNames[k])) {
+                                        this.buildSubSchema(classNames, 0, k, updateHelper, schema);    //schema contains all inherited properties
+                                        for (int l = 0; l <= k; l++) appliedClasses.add(classNames[l]);
+                                        if (!accessor.update(classNames[k], updateHelper)) {
+                                            //found an error when update
+                                            LOG.error("Found an error when updating " + updateHelper.getUuid() + " class: " + classNames[k]);
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                if (k < classNames.length - 1) {
+                                    //need to overlay some inherited classes
+                                    for (int j = k + 1; j < classNames.length; j++) {
+                                        LOG.info("Pass through overlay " + classNames[j]);
+                                        if (!appliedClasses.contains(classNames[j])) {
+                                            this.buildSubSchema(classNames, j, j, updateHelper, schema);
+                                            if (!accessor.update(classNames[j], updateHelper)) {
+                                                LOG.error("Found an error when updating " + updateHelper.getUuid() + " class: " + classNames[j]);
+                                                continue;
+                                                //overlay by single instances
+                                            }
+                                        }
+                                    }
+                                }
+                            }            //and go to most prioritied values
+
+                            updatePatches.remove(uuid);
+                            textMessage.acknowledge();
                             break;
+
                         case "remove":
+                            textMessage.acknowledge();
                             transactionId = textMessage.getStringProperty("transactionId");
-                            className = keyParts[1];        //add specify
+                            String className = keyParts[1];        //add specify
                             uuid = textMessage.getStringProperty("uuid");
-                            className = specify(transactionId, className, uuid, false);
-                            //synchronously execute accessor remove
-                            if (accessor.remove(transactionId, className, uuid)) {
-                                textMessage.acknowledge();
+                            if (accessor.backup(transactionId, className, uuid)) {
+                                if (accessor.remove(transactionId, className, uuid)) {
+                                    textMessage.acknowledge();
+                                } else {
+                                    LOG.info("Problem when removing " + className + "." + uuid);
+                                }
                             } else {
-                                LOG.info("Problem when processing " + className + "." + uuid);
+                                LOG.info("Problem when backing up "+className+"."+uuid);
                             }
-                            ;
-                            break;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();        //todo: granularity
@@ -496,21 +592,8 @@ public class Connector extends Thread {
 
     private class ConnectorShutdownHook extends Thread {
 
-//        org.apache.qpid.amqp_1_0.jms.Connection connection;
-//        org.apache.qpid.amqp_1_0.jms.MessageProducer uno;
-//        org.apache.qpid.amqp_1_0.jms.MessageConsumer consumer;
-//        org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer;
-//        org.apache.qpid.amqp_1_0.jms.Session session;
-//        String id;
 
         public ConnectorShutdownHook() {
-            ;//String id, org.apache.qpid.amqp_1_0.jms.Session session, org.apache.qpid.amqp_1_0.jms.Connection connection, org.apache.qpid.amqp_1_0.jms.MessageProducer uno, org.apache.qpid.amqp_1_0.jms.MessageConsumer consumer, org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer) {
-//            this.id = id;
-//            this.connection = connection;
-//            this.uno = uno;
-//            this.consumer = consumer;
-//            this.session = session;
-//            this.selfProducer = selfProducer;
         }
 
         public void run() {
@@ -521,27 +604,11 @@ public class Connector extends Thread {
                 synchronized (uno) {
                     uno.send(textMessage);
                 }
-//                uno.close();
             } catch (Exception e) {
             }
             LOG.info("Disconnecting");
             isDisconnected = true;
 
-//            try {
-//                selfProducer.close();
-//            } catch (JMSException e) {
-//
-//            }
-//
-//            try {
-//                consumer.close();
-//            } catch (Exception e) {
-//            }
-//            try {
-//                connection.stop();
-//                connection.close();
-//            } catch (Exception e) {
-//            }
             System.out.println("Graceful shutdown");
         }
     }
@@ -565,20 +632,78 @@ public class Connector extends Thread {
             this.uuid = uuid;
         }
 
+        private void buildSubSchema(String[] classNames, int minIndex, int maxIndex, GetHelper helper, List<DataClass> schema) {
+            helper.resetSchema();
+            for (int i = minIndex; i <= maxIndex; i++) {
+                String clName = classNames[i];
+                for (DataClass schemaElement : schema) {
+                    if (schemaElement.getClassName().equalsIgnoreCase(clName)) {
+                        //add all the elements of class to subschema
+                        Iterator<DataElement> ide = schemaElement.getElements();
+                        while (ide.hasNext()) {
+                            helper.addElementToSchema(ide.next());
+                        }
+                    }
+                }
+            }
+        }
+
         public void run() {
 
             try {
                 String transactionId = sourceMessage.getStringProperty("transactionId");
-                Document xml = accessor.get(transactionId, className, uuid);
-                String response = "";
-                if (xml != null) {
-                    TransformerFactory transformerFactory = TransformerFactory.newInstance();
-                    Transformer transformer;
-                    transformer = transformerFactory.newTransformer();
-                    StringWriter sw = new StringWriter();
-                    transformer.transform(new DOMSource(xml), new StreamResult(sw));
-                    response = sw.toString();
+                GetHelper getHelper = new GetHelper(uuid, transactionId, className);
+                List<DataClass> schema = accessor.getSchema();        //todo: optimize!!!
+                String target = sourceMessage.getStringProperty("target");    //target classes
+                LOG.info("Target: " + target);
+                String targets[] = target.split(",");
+                ArrayList<String> appliedClasses = new ArrayList<>();
+                for (int i = targets.length - 1; i >= 0; i--) {
+                    //reverse order - to high priority
+                    String[] classNames = targets[i].split("-");        //parse from top to bottom (specialize)
+
+                    //search in reverse order to last monolithic class
+                    int k = -1;
+                    for (int j = classNames.length - 1; j >= 0; j--) {
+                        String clName = classNames[j];
+                        LOG.debug("ClName: " + clName);
+                        for (DataClass schemaElement : schema) {
+                            LOG.debug("Checking class path: " + schemaElement.getClassName());
+                            if (schemaElement.getClassName().equalsIgnoreCase(clName) && schemaElement.isMonolithic() == true) {
+                                k = j;        //store monolithic entry
+                                break;
+                            }
+                        }
+                        if (k >= 0) break;
+                    }
+
+                    if (k >= 0) {
+                        LOG.debug("Found monolithic entry " + classNames[k]);
+                        if (!appliedClasses.contains(classNames[k])) {
+                            this.buildSubSchema(classNames, 0, k, getHelper, schema);    //schema contains all inherited properties
+                            for (int l = 0; l <= k; l++) appliedClasses.add(classNames[l]);
+                            accessor.get(classNames[k], getHelper);     //fill monolithic part
+                        }
+                    }
+
+                    if (k < classNames.length - 1) {
+                        //need to overlay some inherited classes
+                        for (int j = k + 1; j < classNames.length; j++) {
+                            LOG.debug("Pass through overlay " + classNames[j]);
+                            if (!appliedClasses.contains(classNames[j])) {
+                                this.buildSubSchema(classNames, j, j, getHelper, schema);
+                                accessor.get(classNames[j], getHelper);        //overlay by single instances
+                            }
+                        }
+                    }
+                }            //and go to most priority values
+
+                //apply any patches
+                if (updatePatches.containsKey(uuid)) {
+                    getHelper.applyPatch(updatePatches.get(uuid));
                 }
+
+                String response = getHelper.transformToXml();
 
                 TextMessage responseMessage;
                 responseMessage = session.createTextMessage();
@@ -589,10 +714,45 @@ public class Connector extends Thread {
                 synchronized (uno) {
                     uno.send(responseMessage);
                 }
-            } catch (TransformerException e) {
-                LOG.error("Document transform error");
             } catch (JMSException e) {
-                LOG.error("Message error");
+                LOG.error("Get message error "+e.getMessage());
+            }
+        }
+    }
+
+    class ValidateThread extends AsyncThread {
+        String uuid;
+        String className;
+        String data;
+
+        public ValidateThread(TextMessage sourceMessage, String className, String uuid, String data) {
+            super(sourceMessage);
+            this.uuid = uuid;
+            this.className = className;
+            this.data = data;
+        }
+
+        public void run() {
+            try {
+                String transactionId = sourceMessage.getStringProperty("transactionId");
+                UpdateHelper uh = new UpdateHelper(uuid, transactionId);
+                String[] validationResults = accessor.validate(className, uh);
+                String result = "";
+                for (String row : validationResults) {
+                    result+=row+"\n";
+                }
+                result = result.trim();
+                TextMessage response;
+                response = session.createTextMessage(result);
+                response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
+                response.setStringProperty("transactionId", transactionId);
+                response.setSubject("validateresponse."+id);
+                LOG.debug("Response is "+result);
+                synchronized (uno) {
+                    uno.send(response);
+                }
+            } catch (JMSException e) {
+                LOG.error("Error when validating entry");
             }
         }
     }
@@ -623,7 +783,7 @@ public class Connector extends Thread {
                     uno.send(response);
                 }
             } catch (JMSException e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                LOG.error("Error when specifying: "+e.getMessage());
             }
 
         }
@@ -660,7 +820,7 @@ public class Connector extends Thread {
                     uno.send(response);
                 }
             } catch (JMSException e) {
-                e.printStackTrace();
+                LOG.error("Error when identifying "+e.getMessage());
             }
         }
     }
@@ -695,7 +855,7 @@ public class Connector extends Thread {
                     uno.send(response);
                 }
             } catch (JMSException e) {
-                e.printStackTrace();
+                LOG.error("Error when unifying: "+e.getMessage());
             }
         }
     }
@@ -730,7 +890,7 @@ public class Connector extends Thread {
                     uno.send(response);
                 }
             } catch (JMSException e) {
-                e.printStackTrace();
+                LOG.error("Error when checking: "+e.getMessage());
             }
         }
     }
