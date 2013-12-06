@@ -1,0 +1,34 @@
+<configuration xmlns="http://logging.apache.org/log4php/">
+
+    <appender name="defaultAppender" class="LoggerAppenderEcho">
+        <layout class="LoggerLayoutSimple" />
+    </appender>
+
+    <appender name="cliAppender" class="LoggerAppenderEcho">
+        <layout class="LoggerLayoutPattern">
+            <param name="conversionPattern" value="&amp;#x001b;[0;31m xxxx %m &amp;#x001b;[m%n" />
+        </layout>
+    </appender>
+
+    <logger name="cli">
+        <level value="DEBUG" />
+        <!-- <appender_ref ref="cliAppender" /> -->
+    </logger>
+
+    <logger name="receiver" additivity="false">
+        <level value="DEBUG"/>
+    </logger>
+
+    <logger name="sender" additivity="false">
+        <level value="DEBUG"/>
+    </logger>
+
+    <logger name="sharedMemoryWrapper" additivity="false">
+        <level value="DEBUG"/>
+    </logger>
+
+    <root>
+        <level value="DEBUG" />
+        <appender_ref ref="defaultAppender" />
+    </root>
+</configuration>
