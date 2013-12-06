@@ -1,5 +1,20 @@
 package org.gathe.integration;
+/**
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
+ */
 import org.apache.qpid.amqp_1_0.jms.Session;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
@@ -20,15 +35,7 @@ public class Main {
 //        System.out.println(new File("log4j.xml").getAbsolutePath());
 //        System.setProperty("log4j.configuration", "file:"+new File("log4j.xml").getAbsolutePath());
 
-        ReceiverThread rt = new ReceiverThread(endpointManager);
-        MonitorThread mt = new MonitorThread(endpointManager);
-        mt.start();
-        rt.start();
-
-        Server webServer = new Server(6080);
-        webServer.setHandler(new WebHandler(endpointManager));
-        webServer.start();
-
-        rt.join();          //message loop
+        new EndpointManager();
+        System.out.println("Leaving main loop");
     }
 }

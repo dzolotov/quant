@@ -8,6 +8,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import javax.jms.MessageProducer;
+import javax.jms.Session;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -15,13 +17,27 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Created by zolotov on 31.10.13.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * <p/>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * <p/>
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
  */
 public class EndpointManager {
 
-    private static int ringLength = 30;
+    private static int ringLength = 256;
 
     Connection operations;
     Connection history;
@@ -30,43 +46,75 @@ public class EndpointManager {
     private ArrayList<String> endpointNames = new ArrayList<>();
     private HashMap<String, HashMap<String, Object>> endpoints = new HashMap<>();
     private HashMap<String, HashMap<String, String>> extendsData = new HashMap<>();
-    private HashMap<String, String> requests = new HashMap<>();
-    private HashMap<String, Thread> threads = new HashMap<>();
-    private HashMap<String, String> identifiers = new HashMap<>();
-    private HashMap<String, String> replies = new HashMap<>();
-    private HashMap<String, HashMap<String, String>> waitingList = new HashMap<>();
-    private HashMap<String, ArrayList<String>> responses = new HashMap<>();
-    private HashMap<String, ArrayList<String>> responders = new HashMap<>();
-    private HashMap<String, String> chainResponses = new HashMap<>();
+    private ConcurrentHashMap<String, String> requests = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Thread> threads = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> identifiers = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> replies = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Thread> responseThreads = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, HashMap<String, String>> waitingList = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ArrayList<String>> responses = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ArrayList<String>> responders = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> chainResponses = new ConcurrentHashMap<>();
 
     private static String ring[] = new String[ringLength];
     private static int ringHead = 0;
 
+    private Session session;
+    private MessageProducer producer;
+    private boolean isDisconnected;
+
     private Response sync;
+
+    public void setSession(Session session) {
+        this.session = session;
+    }
+
+    public Session getSession() {
+        return this.session;
+    }
+
+    public void setMessageProducer(MessageProducer messageProducer) {
+        this.producer = messageProducer;
+    }
+
+    public MessageProducer getMessageProducer() {
+        return this.producer;
+    }
+
+    public void disconnect() {
+        //kill all the threads
+        for (String thKey : threads.keySet()) {
+            Thread th = threads.get(thKey);
+            try {
+                th.interrupt();
+            } catch (Exception e) {
+            }
+        }
+        isDisconnected = true;
+    }
+
+    public boolean isDisconnected() {
+        return isDisconnected;
+    }
 
     public EndpointManager() {
         LOG.info("Endpoint Manager initialized");
-
-        endpointNames.add("-endpoint_parsec");
-        endpointNames.add("-endpoint_ldap");
-        endpointNames.add("-endpoint_jackrabbit");
-        endpointNames.add("-endpoint_personal");
-        endpointNames.add("-endpoint_abitonline");
-        endpointNames.add("-endpoint_firebird");
+        isDisconnected = false;
 
         Server embedded = new Server();
+        embedded.setPort(8000);
         embedded.setLogWriter(null);
         embedded.setSilent(true);
         embedded.setDatabaseName(0, "history");
         embedded.setDatabasePath(0, "file:history");
         embedded.setDatabaseName(1, "operations");
         embedded.setDatabasePath(1, "file:operations");
-	embedded.start();
+        embedded.start();
 
         try {
             Class.forName("org.hsqldb.jdbcDriver");
-            operations = DriverManager.getConnection("jdbc:hsqldb:hsql://localhost/operations", "sa", "");
-            history = DriverManager.getConnection("jdbc:hsqldb:hsql://localhost/history", "sa", "");
+            operations = DriverManager.getConnection("jdbc:hsqldb:hsql://localhost:8000/operations", "sa", "");
+            history = DriverManager.getConnection("jdbc:hsqldb:hsql://localhost:8000/history", "sa", "");
 
             Statement st = operations.createStatement();
             if (!st.executeQuery("SELECT * FROM INFORMATION_SCHEMA.SYSTEM_COLUMNS WHERE TABLE_NAME='log'").next()) {
@@ -82,11 +130,23 @@ public class EndpointManager {
 
         } catch (ClassNotFoundException e) {
             LOG.error("Error when connecting to operations database");
-	    e.printStackTrace();
+            e.printStackTrace();
         } catch (SQLException e) {
             LOG.error("Error when connecting to operations database");
             e.printStackTrace();
         }
+
+        ReceiverThread rt = new ReceiverThread(this);
+        MonitorThread mt = new MonitorThread(this);
+        mt.start();
+        rt.start();
+
+        try {
+            rt.join();          //message loop
+        } catch (Exception e) {
+        }
+
+        mt.interrupt();
     }
 
     public int getRingHead() {
@@ -120,7 +180,7 @@ public class EndpointManager {
         ringHead++;
         if (ringHead >= ringLength) ringHead = 0;
 
-        HashMap<String, Response> sem = (HashMap<String, Response>) WebHandler.semaphores.clone();
+        ConcurrentHashMap<String, Response> sem = WebHandler.semaphores;
 
         try {
             synchronized (sem) {
@@ -172,6 +232,57 @@ public class EndpointManager {
         return false;
     }
 
+    //Traverse to most abstract type
+    public String traverseToAbstract(String className) {
+        LOG.info("Traversing to abstract via " + className);
+        String topClass = this.searchAncestor(className);
+        if (topClass != null) return traverseToAbstract(topClass);
+        return className;
+    }
+
+    public String searchAncestor(String className) {
+        String topClass = null;
+        for (String endpointName : endpoints.keySet()) {
+            HashMap<String, String> extData = extendsData.get(endpointName);
+            if (extData != null) {
+                if (extData.containsKey(className)) topClass = extData.get(className);
+            }
+        }
+        return topClass;
+    }
+
+    public String getTrack(String className) {
+        LOG.info("Traversing via " + className);
+        String topClass = this.searchAncestor(className);
+        if (topClass != null) return getTrack(topClass) + "-" + className;
+        return className;
+    }
+
+    public String searchNearestIdentification(String className, String identifier) {
+        LOG.info("Searching for nearest identification");
+        for (String endpointName : endpoints.keySet()) {
+            LOG.info("Endpoint: " + endpointName);
+            HashMap<String, Object> epRef = (HashMap<String, Object>) endpoints.get(endpointName).get("identifiers");
+            HashMap<String, String> idRef = (HashMap<String, String>) epRef.get(className);
+            if (idRef != null && idRef.containsKey(identifier))
+                return className;        //find identification possibility
+        }
+        String topClass = searchAncestor(className);        //traverse up to root
+        if (topClass != null) return searchNearestIdentification(topClass, identifier);
+        return null;        //if not found
+    }
+
+    public String searchNearestCheckpoint(String className, String check) {
+        for (String endpointName : endpoints.keySet()) {
+            HashMap<String, Object> epRef = (HashMap<String, Object>) endpoints.get(endpointName).get("checks");
+            HashMap<String, String> idRef = (HashMap<String, String>) epRef.get(className);
+            if (idRef != null && idRef.containsKey(check)) return className;        //find identification possibility
+        }
+        String topClass = searchAncestor(className);        //traverse up to root
+        if (topClass != null) return searchNearestCheckpoint(topClass, check);
+        return null;        //if not found
+    }
+
     //get all declared subclasses for specified class
     public ArrayList<String> getSubclasses(String className) {
         ArrayList<String> result = new ArrayList<>();
@@ -193,7 +304,7 @@ public class EndpointManager {
         return unique;
     }
 
-    private ArrayList<String> getIdentifierByEndpoint(String endpointName, String className, ArrayList<String> allSubclasses ) {
+    private ArrayList<String> getIdentifierByEndpoint(String endpointName, String className, ArrayList<String> allSubclasses) {
         ArrayList<String> result = new ArrayList<>();
         if (!endpoints.containsKey(endpointName)) return result;
         HashMap<String, HashMap<String, HashMap<String, String>>> endpointIdentifiers = (HashMap<String, HashMap<String, HashMap<String, String>>>) endpoints.get(endpointName).get("identifiers");
@@ -212,8 +323,8 @@ public class EndpointManager {
     public void storeIdentifier(String uuid, String identifierName, String identifierValue) {
         try {
             Statement sth = history.createStatement();
-	    String qr = "INSERT INTO identifiers (uuid,identifier_name,identifier_value) VALUES ('" + uuid + "','" + identifierName + "','" + identifierValue + "')";
-	    LOG.debug("Query to store: "+qr);
+            String qr = "INSERT INTO identifiers (uuid,identifier_name,identifier_value) VALUES ('" + uuid + "','" + identifierName + "','" + identifierValue + "')";
+            LOG.debug("Query to store: " + qr);
             sth.executeUpdate(qr);
             sth.executeUpdate("COMMIT");
         } catch (SQLException e) {
@@ -222,7 +333,7 @@ public class EndpointManager {
     }
 
     public ArrayList<String> getIdentifierRequests(String className) {
-        ArrayList<String> result = new ArrayList<>(); 
+        ArrayList<String> result = new ArrayList<>();
         ArrayList<String> allClasses = this.getSubclasses(className);
         allClasses.add(className);
         for (String endpointName : endpoints.keySet()) {
@@ -244,12 +355,6 @@ public class EndpointManager {
             if (id >= 0) endpointIndexes.add("+" + id);
         }
 
-//
-//        for (String endpoint : endpoints.keySet()) {
-//            if (checkEndpointLinked(endpoint, className)) {
-//                endpointIndexes.add("+"+this.getEndpointIndex(endpoint));
-//            }
-//        }
         return this.join(endpointIndexes, ",");
     }
 
@@ -262,6 +367,26 @@ public class EndpointManager {
             }
         }
         return this.join(endpointIndexes, ",");
+    }
+
+    public String fetchStoredUuid(String identifierName, String id) {
+        try {
+            Statement st = history.createStatement();
+            ResultSet rs = st.executeQuery("SELECT * FROM identifiers WHERE identifier_name='" + identifierName + "' AND identifier_value='" + id + "'");
+            if (rs.next()) return rs.getString("uuid");
+        } catch (Exception e) {
+        }
+        return null;
+    }
+
+    public String fetchStoredId(String identifierName, String uuid) {
+        try {
+            Statement st = history.createStatement();
+            ResultSet rs = st.executeQuery("SELECT * FROM identifiers WHERE uuid='" + uuid + "' AND identifier_name='" + identifierName + "'");
+            if (rs.next()) return rs.getString("identifier_value");
+        } catch (Exception e) {
+        }
+        return null;
     }
 
     private boolean allSystemsConfirmed() {
@@ -352,6 +477,7 @@ public class EndpointManager {
     }
 
     public void sendAnimation(String transactionId, String commonAction, String identifier, String color, String actions) {
+        if (identifier == null) return;
         LOG.debug("Sending animation for " + transactionId + " ca: " + commonAction + " id:" + identifier + " script " + color + ":" + actions);
         identifier = identifier.replace(":", "-");
         sendMessage("animation:" + transactionId + ":" + commonAction + ":" + identifier + ":" + color + ":" + actions);
@@ -420,7 +546,7 @@ public class EndpointManager {
                     } else if (attribute.getNodeName().equalsIgnoreCase("check")) {
                         String name = attribute.getAttribute("name");
                         String description = attribute.getAttribute("description");
-                        LOG.debug("Found new identifier " + name + " (" + description + ")");
+                        LOG.debug("Found new check " + name + " (" + description + ")");
                         checkHM.put(name, description);
                     }
                 }
@@ -447,7 +573,7 @@ public class EndpointManager {
             HashMap systemDescription = new HashMap();
             systemDescription.put("schema", classDescription);
             systemDescription.put("identifiers", identifierDescription);
-            systemDescription.put("check", checkDescription);
+            systemDescription.put("checks", checkDescription);
             systemDescription.put("specifiables", specifiables);
             systemDescription.put("updatable", updatable);
             systemDescription.put("confirmed", "1");
@@ -461,13 +587,14 @@ public class EndpointManager {
         }
     }
 
-    public void addGetRequest(String commonAction, String messageId, String className, String uuid, String replyTo, Thread thread) {
+    public void addGetRequest(String commonAction, String messageId, String className, String uuid, String replyTo, Thread thread, Thread responseThread) {
         LOG.debug("Add get request for " + className + ":" + uuid + ". Message ID: " + messageId);
         responders.put(messageId, new ArrayList<String>());
         requests.put(messageId, commonAction);
         threads.put(messageId, thread);
         replies.put(messageId, replyTo);
         identifiers.put(messageId, uuid);
+        responseThreads.put(messageId, responseThread);
         HashMap<String, String> waitingData = new HashMap<>();
         for (String endpointName : endpoints.keySet()) {
             HashMap<String, Object> schema = (HashMap<String, Object>) endpoints.get(endpointName).get("schema");
@@ -481,16 +608,17 @@ public class EndpointManager {
         waitingList.put(messageId, waitingData);
     }
 
-    public void addCheckRequest(String commonAction, String messageId, String className, String identifierName, String identifier, String replyTo, Thread thread) {
+    public void addCheckRequest(String commonAction, String messageId, String className, String identifierName, String identifier, String replyTo, Thread thread, Thread responseThread) {
         LOG.debug("Add check request for " + className + "." + identifierName + ": " + identifier + ". Message ID: " + messageId);
         responders.put(messageId, new ArrayList<String>());
         requests.put(messageId, commonAction);
         threads.put(messageId, thread);
-        replies.put(messageId, replyTo);
+        if (replyTo != null) replies.put(messageId, replyTo);
         identifiers.put(messageId, identifier);
+        responseThreads.put(messageId, responseThread);
         HashMap<String, String> waitingData = new HashMap<>();
         for (String endpointName : endpoints.keySet()) {
-            HashMap<String, HashMap<String, String>> checks = (HashMap<String, HashMap<String, String>>) endpoints.get(endpointName).get("check");
+            HashMap<String, HashMap<String, String>> checks = (HashMap<String, HashMap<String, String>>) endpoints.get(endpointName).get("checks");
             for (String schemaClassName : checks.keySet()) {
                 if (schemaClassName.equalsIgnoreCase(className)) {
                     if (checks.get(schemaClassName).containsKey(identifierName)) {
@@ -503,13 +631,14 @@ public class EndpointManager {
         waitingList.put(messageId, waitingData);
     }
 
-    public void addIdentifierRequest(String commonAction, String messageId, String className, String identifierName, String identifier, String replyTo, Thread thread) {
+    public void addIdentifierRequest(String commonAction, String messageId, String className, String identifierName, String identifier, String replyTo, Thread thread, Thread responseThread) {
         LOG.debug("Add resolve request for " + className + "." + identifierName + ": " + identifier + ". Message ID: " + messageId);
         responders.put(messageId, new ArrayList<String>());
         requests.put(messageId, commonAction);
         threads.put(messageId, thread);
-        replies.put(messageId, replyTo);
+        if (replyTo != null) replies.put(messageId, replyTo);
         identifiers.put(messageId, identifier);
+        responseThreads.put(messageId, responseThread);
 
         HashMap<String, String> waitingData = new HashMap<>();
         for (String endpointName : endpoints.keySet()) {
@@ -527,18 +656,17 @@ public class EndpointManager {
         waitingList.put(messageId, waitingData);
     }
 
-    public void addSpecifyRequest(String commonAction, String messageId, String className, String uuid, String replyTo, Thread thread) {
+    public void addSpecifyRequest(String commonAction, String messageId, String className, String uuid, String replyTo, Thread thread, Thread responseThread) {
         LOG.debug("Add specify request for " + className + ":" + uuid + ". Message ID: " + messageId);
         responders.put(messageId, new ArrayList<String>());
         requests.put(messageId, commonAction);
         threads.put(messageId, thread);
-        replies.put(messageId, replyTo);
+        if (replyTo != null) replies.put(messageId, replyTo);
         identifiers.put(messageId, uuid);
+        if (responseThread != null) responseThreads.put(messageId, responseThread);
         HashMap<String, String> waitingData = new HashMap<>();
         for (String endpointName : endpoints.keySet()) {
             if (isClassNameSpecifiableByEndpoint(endpointName, className)) {
-                //ArrayList<String> specifiables = (ArrayList<String>) endpoints.get(endpointName).get("specifiables");
-                //if (specifiables.contains(className)) {
                 LOG.debug("Resolved to endpoint: " + endpointName);
                 waitingData.put(endpointName, new Timestamp(new java.util.Date().getTime()).toString());
             }
@@ -550,7 +678,13 @@ public class EndpointManager {
         return replies.get(messageId);
     }
 
-    public boolean gotResponse(String messageId, String from, String content) {
+    public void timeoutResponse(String messageId) {
+        if (threads.containsKey(messageId)) {
+            responseThreads.get(messageId).start();
+        }
+    }
+
+    public void gotResponse(String messageId, String from, String content) {
         LOG.debug("Got response from remote system " + from + " with " + content);
         if (threads.containsKey(messageId)) {
 
@@ -564,9 +698,10 @@ public class EndpointManager {
             LOG.debug("waiting data length for " + messageId + " is " + waitingData.size());
             responses.get(messageId).add(content);
 
-            return (waitingData.isEmpty());
+            if (waitingData.isEmpty()) {
+                responseThreads.get(messageId).start();
+            }
         }
-        return false;
     }
 
     public String getResponseAnimation(String messageId) {
@@ -598,29 +733,16 @@ public class EndpointManager {
         requests.remove(messageId);
         responders.remove(messageId);
         identifiers.remove(messageId);
+        responseThreads.remove(messageId);
     }
 
     public ArrayList<String> getAllResponses(String messageId) {
         return responses.get(messageId);
     }
 
-//    private boolean isClassNameExtendableByEndpoint(String endpointName, String generalClassName) {
-//        HashMap<String, String> endpointExtendsData = extendsData.get(endpointName);
-//
-//        for (String subclass : endpointExtendsData.keySet()) {
-//            String extClass = endpointExtendsData.get(subclass);
-//            if (extClass.trim().equalsIgnoreCase(generalClassName)) {
-//                return true;
-//            }
-//            if (isClassNameExtendable(subclass)) return true;
-//        }
-//        return false;
-//    }
-
     public boolean isClassNameExtendable(String generalClassName) {
 
         for (String endpointName : extendsData.keySet()) {
-//            if (isClassNameExtendableByEndpoint(endpointName, generalClassName)) return true;
             if (extendsData.containsKey(endpointName) && extendsData.get(endpointName).containsValue(generalClassName))
                 return true;
         }
@@ -633,7 +755,6 @@ public class EndpointManager {
         ArrayList<String> specifiables = (ArrayList<String>) endpoints.get(endpointName).get("specifiables");
 
         if (specifiables.contains(className)) {
-//        if (isClassNameExtendableByEndpoint(endpointName, generalClassName)) {
             return true;
         }
 
