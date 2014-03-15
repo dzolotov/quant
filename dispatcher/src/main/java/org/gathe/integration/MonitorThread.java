@@ -70,10 +70,10 @@ public class MonitorThread extends Thread {
                         tm.setStringProperty("transactionId", transactionId);
                         tm.setSubject("ping." + endpointName);
                         LOG.debug("Data subject: ping." + endpointName);
-                        synchronized (producer) {
-                            producer.send(tm);
-                        }
                         endpointManager.doPing(endpointName);
+//                        synchronized (producer) {
+                        producer.send(tm);
+//                        }
                     }
                     Response sync = new Response();
                     endpointManager.setSyncObject(sync);

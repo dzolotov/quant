@@ -23,6 +23,7 @@ import org.apache.qpid.amqp_1_0.jms.TextMessage;
 import org.w3c.dom.Document;
 
 import javax.jms.ConnectionFactory;
+import javax.jms.DeliveryMode;
 import javax.jms.JMSException;
 import javax.naming.Context;
 import javax.naming.InitialContext;
@@ -78,17 +79,21 @@ public class ReceiverThread extends Thread {
             Context context = new InitialContext(properties);
             javax.jms.ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("qpidConnectionfactory");
             connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
-            connection.setClientID("dispatcher");
+//            connection.setClientID("dispatcher");
             connection.start();
             session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
             this.dispatcher = (org.apache.qpid.amqp_1_0.jms.Queue) context.lookup("dispatcher");
             messageConsumer = session.createConsumer(dispatcher);
+//            ((MessageConsumerImpl) messageConsumer).setMaxPrefetch(1);
             org.apache.qpid.amqp_1_0.jms.Queue integration = (Queue) context.lookup("integration");
             producer = session.createProducer(integration);
+            producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
             org.apache.qpid.amqp_1_0.jms.Queue endpoints = (Queue) context.lookup("endpoints");
             endpointsProducer = session.createProducer(endpoints);
+            endpointsProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
             org.apache.qpid.amqp_1_0.jms.Queue selfProducerQueue = (Queue) context.lookup("uno");
             selfProducer = session.createProducer(selfProducerQueue);
+            selfProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
 
             Runtime.getRuntime().addShutdownHook(new ReceiverThreadShutdownHook());
             endpointManager.setSession(session);
@@ -111,17 +116,21 @@ public class ReceiverThread extends Thread {
             String echoMessageId = UUID.randomUUID().toString();
             boolean activated = false;
             boolean checkForEchoResponse = false;
-            boolean isDisconnected = false;
+//            boolean isDisconnected = false;
 
             while (!endpointManager.isDisconnected()) {
                 try {
                     Object message = null;
+//                    LOG.debug("Receiver is waiting for a message");
                     if (activated) {
-                        message = messageConsumer.receive();
+//                        LOG.info("Waiting");
+//                        MessageConsumerImpl mci2 = (MessageConsumerImpl) messageConsumer;
+//                        mci2.
+                        message = messageConsumer.receive(50);
+//                        LOG.info("Received");
                     } else {
-                        message = messageConsumer.receive(100);
+                        message = messageConsumer.receive(200);
                     }
-                    LOG.debug("Receiver is waiting for a message");
                     if (message == null && !activated) {
                         if (checkForEchoResponse) {
                             LOG.error("Echo message not found: there are another consumers or message routing issue");
@@ -145,8 +154,11 @@ public class ReceiverThread extends Thread {
                         continue;
                     }
 
+                    if (message == null) continue;
+
                     if (!(message instanceof TextMessage)) continue;
                     TextMessage textMessage = (TextMessage) message;
+                    textMessage.acknowledge();
                     if (!activated && checkForEchoResponse && echoMessageId.equals(textMessage.getStringProperty("messageId"))) {
                         LOG.info("Echo message found: this dispatcher is only one");
                         TextMessage discoverMessage = session.createTextMessage();
@@ -268,6 +280,7 @@ public class ReceiverThread extends Thread {
                                 identifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
                                 synchronized (endpointsProducer) {
+                                    LOG.info("Sending to ep: " + identifyResponse);
                                     endpointsProducer.send(identifyResponse);
                                 }
                             }
@@ -298,6 +311,7 @@ public class ReceiverThread extends Thread {
                                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
                                 synchronized (endpointsProducer) {
+                                    LOG.info("Sending to ep: " + unifyResponse);
                                     endpointsProducer.send(unifyResponse);
                                 }
 
@@ -329,31 +343,32 @@ public class ReceiverThread extends Thread {
                         case "got":
                             if (!activated) continue;
                             LOG.info("Receiver: Got response from " + keyParts[1]);
-                            endpointManager.doPong(keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "unifyresponse":
                             if (!activated) continue;
                             LOG.info("Receiver: Unify response " + keyParts[1]);
-                            endpointManager.doPong(keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
+                            LOG.info("Unify response parsed");
                             break;
                         case "identifyresponse":
                             if (!activated) continue;
                             LOG.info("Receiver: Identify response " + keyParts[1]);
-                            endpointManager.doPong(keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "checkresponse":
                             if (!activated) continue;
                             LOG.info("Receiver: Check response: " + keyParts[1]);
-                            endpointManager.doPong(keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "specifyresponse":
                             if (!activated) continue;
                             LOG.info("Receiver: Specify response from " + keyParts[1]);
-                            endpointManager.doPong(keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                     }
@@ -407,11 +422,12 @@ public class ReceiverThread extends Thread {
                 getResponse.setText(resultString.toString());
                 getResponse.setSubject(endpointManager.getReplyTo(messageId));
                 LOG.debug("Get response message: " + getResponse + "; " + getResponse.getText() + "|" + getResponse.getStringProperty("messageId") + "|" + getResponse.getSubject());
-                synchronized (endpointsProducer) {
-                    endpointsProducer.send(getResponse);
-                }
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
+                synchronized (endpointsProducer) {
+                    LOG.info("Sending to ep: " + getResponse);
+                    endpointsProducer.send(getResponse);
+                }
             } catch (Exception e) {
                 LOG.error("Error when sending response");
             }
@@ -430,8 +446,10 @@ public class ReceiverThread extends Thread {
         public void run() {
             //response animation
             try {
+                LOG.info("Unify response thread activated");
                 endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("unify"), endpointManager.getResponseAnimation(messageId));
                 endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("unify"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
+                LOG.info("Sendanim");
                 ArrayList<String> responses = endpointManager.getAllResponses(messageId);
                 //check for nonuniqueness
                 String response = "";
@@ -446,12 +464,18 @@ public class ReceiverThread extends Thread {
                 unifyResponse.setStringProperty("transactionId", transactionId);
                 unifyResponse.setText(response);
                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
-                synchronized (endpointsProducer) {
-                    endpointsProducer.send(unifyResponse);
-                }
-
                 endpointManager.interruptRequestThread(messageId);
+                LOG.info("presync");
+                synchronized (endpointsProducer) {
+                    LOG.info("presend");
+                    endpointsProducer.send(unifyResponse);
+//                    endpointsProducer.
+                    LOG.info("postsend");
+                }
                 endpointManager.cleanupResponse(messageId);
+                LOG.info("Response sent");
+//                }
+
             } catch (Exception e) {
                 LOG.error("Error when sending unify response");
             }
@@ -494,16 +518,21 @@ public class ReceiverThread extends Thread {
                     identifyResponse.setText(responseString);
                     identifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                     LOG.debug("Data: " + responseString + " message id: " + messageId);
+                    endpointManager.interruptRequestThread(messageId);
+                    endpointManager.cleanupResponse(messageId);
                     synchronized (endpointsProducer) {
+                        LOG.info("Sending to ep: " + identifyResponse);
+
                         endpointsProducer.send(identifyResponse);
                     }
+//                    }
                 } else {
                     LOG.info("Receiver: Got identify response " + responseString + " and proceed to next action");
                     endpointManager.setResponse(messageId, responseString);
+                    endpointManager.interruptRequestThread(messageId);
+                    endpointManager.cleanupResponse(messageId);
                 }
 
-                endpointManager.interruptRequestThread(messageId);
-                endpointManager.cleanupResponse(messageId);
             } catch (Exception e) {
                 LOG.error("Error when sending identify response " + e.getMessage());
             }
@@ -554,15 +583,19 @@ public class ReceiverThread extends Thread {
                     specifyResponse.setStringProperty("transactionId", transactionId);
                     specifyResponse.setText(responseString);
                     specifyResponse.setSubject(specifyReplyTo);
+                    endpointManager.interruptRequestThread(messageId);
+                    endpointManager.cleanupResponse(messageId);
                     synchronized (endpointsProducer) {
+                        LOG.info("Sending to ep: " + specifyResponse);
+
                         endpointsProducer.send(specifyResponse);
                     }
                 } else {
                     LOG.info("Receiver: Got specify response " + responseString + " and proceed to next action");
+                    endpointManager.interruptRequestThread(messageId);
+                    endpointManager.cleanupResponse(messageId);
                     endpointManager.setResponse(messageId, responseString);
                 }
-                endpointManager.interruptRequestThread(messageId);
-                endpointManager.cleanupResponse(messageId);
 
             } catch (Exception e) {
                 LOG.error("Error when sending specify response " + e.getMessage());
@@ -601,12 +634,15 @@ public class ReceiverThread extends Thread {
                 checkResponse.setStringProperty("transactionId", transactionId);
                 checkResponse.setText(result);
                 checkResponse.setSubject(endpointManager.getReplyTo(messageId));
-                synchronized (endpointsProducer) {
-                    endpointsProducer.send(checkResponse);
-                }
-
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
+                synchronized (endpointsProducer) {
+                    LOG.info("Sending to ep: " + checkResponse);
+
+                    endpointsProducer.send(checkResponse);
+                }
+//                }
+
             } catch (Exception e) {
                 LOG.error("Error when sending check response " + e.getMessage());
             }
@@ -728,7 +764,7 @@ public class ReceiverThread extends Thread {
                 synchronized (producer) {
                     producer.send(request);
                 }
-                Thread.sleep(2000);
+                Thread.sleep(3000);
                 endpointManager.timeoutResponse(messageId);
                 LOG.info(action + " response timeout");
 
@@ -747,7 +783,6 @@ public class ReceiverThread extends Thread {
             }
             overridedClasses = endpointManager.join(result, ",");
         }
-
     }
 
     class SpecifyThread extends RequestThread {

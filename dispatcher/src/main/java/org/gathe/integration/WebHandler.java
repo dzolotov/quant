@@ -29,12 +29,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class WebHandler extends AbstractHandler {
 
-    public static ConcurrentHashMap<String,Response> semaphores = new ConcurrentHashMap<>();
+    public static ConcurrentHashMap<String, Response> semaphores = new ConcurrentHashMap<>();
     private EndpointManager endpointManager;
 
     private Logger LOG = Logger.getLogger(this.getClass());
@@ -49,7 +48,7 @@ public class WebHandler extends AbstractHandler {
                        HttpServletRequest request,
                        HttpServletResponse response)
             throws IOException, ServletException {
-        LOG.info("Handling target: "+target);
+        LOG.info("Handling target: " + target);
 
         if (target.equalsIgnoreCase("/init")) {
             String threadName = Thread.currentThread().getName();
@@ -64,7 +63,7 @@ public class WebHandler extends AbstractHandler {
 
             URL url = getClass().getResource(filename);
             InputStream stream = getClass().getResourceAsStream(filename);
-            if (stream==null) {
+            if (stream == null) {
                 //resource not found
                 response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                 response.getWriter().println("Resource not found");
@@ -86,12 +85,12 @@ public class WebHandler extends AbstractHandler {
             } catch (Exception e) {
                 next = -1;
             }
-            if (next<0) {
+            if (next < 0) {
                 next = endpointManager.getRingHead();
             }
             String threadName = Thread.currentThread().getName();
             Response responseObj = new Response();
-            semaphores.put(threadName,responseObj);
+            semaphores.put(threadName, responseObj);
             synchronized (responseObj) {
                 if (endpointManager.getRingHead() == next) {
                     try {
@@ -102,7 +101,7 @@ public class WebHandler extends AbstractHandler {
                     }
                 }
                 //LOG.debug("Result is "+responseObj.getResponse());
-                LOG.debug("Messages from "+next+" to "+endpointManager.getRingHead());
+                LOG.debug("Messages from " + next + " to " + endpointManager.getRingHead());
                 String[] responses = endpointManager.getMessages(next);
                 for (String resp : responses) {
                     LOG.debug(resp);

@@ -188,7 +188,7 @@ public class EndpointManager {
                     Response response = sem.get(threadId);
                     synchronized (response) {
                         LOG.debug("Sending to " + threadId);
-                        //response.setResponse(message);
+                        response.setResponse(message);
                         response.notify();
                     }
                 }
@@ -398,6 +398,10 @@ public class EndpointManager {
             }
         }
         return result;
+    }
+
+    public void reactivateSystem(String endpointName) {
+        endpoints.get(endpointName).put("confirmed", "1");
     }
 
     public void doPong(String endpointName) {

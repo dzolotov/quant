@@ -16,7 +16,7 @@ package org.gathe.integration;
 
  @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
  */
-import com.sun.corba.se.spi.activation._RepositoryImplBase;
+
 import org.apache.log4j.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
