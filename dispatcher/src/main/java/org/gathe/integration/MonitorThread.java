@@ -19,6 +19,7 @@ import org.apache.log4j.Logger;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
 import org.eclipse.jetty.server.Server;
 
+import javax.jms.JMSException;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 import java.util.ArrayList;
@@ -71,9 +72,19 @@ public class MonitorThread extends Thread {
                         tm.setSubject("ping." + endpointName);
                         LOG.debug("Data subject: ping." + endpointName);
                         endpointManager.doPing(endpointName);
+
+
 //                        synchronized (producer) {
-                        producer.send(tm);
-//                        }
+                        try {
+                            producer.send(tm);
+                        } catch (JMSException e) {
+                            endpointManager.reconnect();
+                            try {
+                                producer.send(tm);
+                            } catch (JMSException e2) {
+                                LOG.error("Twin error: " + e.getLocalizedMessage());
+                            }
+                        }
                     }
                     Response sync = new Response();
                     endpointManager.setSyncObject(sync);

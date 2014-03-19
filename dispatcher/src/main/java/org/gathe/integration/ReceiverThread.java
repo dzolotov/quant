@@ -20,6 +20,7 @@ import org.apache.log4j.Logger;
 import org.apache.qpid.amqp_1_0.jms.Queue;
 import org.apache.qpid.amqp_1_0.jms.Session;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
+import org.apache.qpid.amqp_1_0.jms.impl.ConnectionImpl;
 import org.w3c.dom.Document;
 
 import javax.jms.ConnectionFactory;
@@ -27,27 +28,26 @@ import javax.jms.DeliveryMode;
 import javax.jms.JMSException;
 import javax.naming.Context;
 import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.UUID;
+import java.util.*;
 
 public class ReceiverThread extends Thread {
 
     Queue dispatcher;
     Logger LOG = Logger.getLogger(this.getClass());
     org.gathe.integration.EndpointManager endpointManager;
-    org.apache.qpid.amqp_1_0.jms.MessageProducer producer;
-    org.apache.qpid.amqp_1_0.jms.MessageProducer endpointsProducer;
-    org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer;
-    org.apache.qpid.amqp_1_0.jms.MessageConsumer messageConsumer;
-    org.apache.qpid.amqp_1_0.jms.Connection connection;
+    org.apache.qpid.amqp_1_0.jms.impl.MessageProducerImpl producer;
+    org.apache.qpid.amqp_1_0.jms.impl.MessageProducerImpl endpointsProducer;
+    org.apache.qpid.amqp_1_0.jms.impl.MessageProducerImpl selfProducer;
+    org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl messageConsumer;
+    org.apache.qpid.amqp_1_0.jms.impl.ConnectionImpl connection;
+    private HashMap<String, String> chunks = new HashMap<>();
     protected static HashMap<String, String> colors;
 
     static {
@@ -59,45 +59,162 @@ public class ReceiverThread extends Thread {
         colors.put("unify", "violet");
         colors.put("specify", "blue");
         colors.put("check", "pink");
+        colors.put("match", "green");
     }
 
     ArrayList<String> uuidCommands = new ArrayList<>();
-    org.apache.qpid.amqp_1_0.jms.Session session;
+    org.apache.qpid.amqp_1_0.jms.impl.SessionImpl session;
+
+    protected String joinStrings(String glue, String[] array) {
+        String line = "";
+        for (String s : array) line += s + glue;
+        return (array.length == 0) ? line : line.substring(0, line.length() - glue.length());
+    }
+
+
+    public void sendToProducer(TextMessage tm) {
+        synchronized (producer) {
+            try {
+                producer.send(tm);
+            } catch (JMSException e) {
+                //trying to reconnect
+                try {
+                    this.connect();
+                    producer.send(tm);
+                } catch (NamingException | JMSException e2) {
+                    LOG.error("Twin Exception " + e2.getLocalizedMessage());
+                }
+            }
+        }
+    }
+
+
+    private void sendChunk(TextMessage textMessage, String chunk, int number, int count) {
+
+        synchronized (endpointsProducer) {
+            try {
+                textMessage.setIntProperty("number", number);
+                textMessage.setIntProperty("count", count);
+                textMessage.setText(chunk);
+                endpointsProducer.send(textMessage);
+            } catch (JMSException e) {
+                try {
+                    connect();
+                    textMessage.setIntProperty("number", number);
+                    textMessage.setIntProperty("count", count);
+                    textMessage.setText(chunk);
+                    endpointsProducer.send(textMessage);
+                } catch (JMSException | NamingException e2) {
+                    LOG.error("Twin error " + e.getLocalizedMessage());
+                }
+            }
+        }
+
+    }
+
+    public void sendToEndpointsProducer(TextMessage textMessage, String content) throws JMSException {
+
+
+        if (content.isEmpty()) {
+            sendChunk(textMessage, "", 0, 1);
+        }
+
+        int chunkSize = 32768;          //todo: define as parameter
+
+        //split message
+        String subject = textMessage.getSubject();
+        HashMap<String, String> headers = new HashMap<>();
+        Enumeration<String> props = textMessage.getPropertyNames();
+        while (props.hasMoreElements()) {
+            String prop = props.nextElement();
+            headers.put(prop, textMessage.getStringProperty(prop));
+        }
+
+        int count = (content.length() + (chunkSize - 1)) / chunkSize;
+        for (int number = 0; number < count; number++) {
+            TextMessage tm = this.session.createTextMessage();
+            tm.setSubject(subject);
+            for (String headerName : headers.keySet()) {
+                tm.setStringProperty(headerName, headers.get(headerName));
+            }
+            int maxLimit = (number + 1) * chunkSize;
+            if (maxLimit > content.length()) maxLimit = content.length();
+            sendChunk(tm, content.substring(number * chunkSize, maxLimit), number, count);
+        }
+    }
+
+
+
+/*
+    public void sendToEndpointsProducer(TextMessage tm) {
+        synchronized (endpointsProducer) {
+            try {
+                endpointsProducer.send(tm);
+            } catch (JMSException e) {
+                //trying to reconnect
+                try {
+                    this.connect();
+                    endpointsProducer.send(tm);
+                } catch (NamingException | JMSException e2) {
+                    LOG.error("Twin Exception "+e2.getLocalizedMessage());
+                }
+            }
+        }
+    }
+*/
+
+    public void connect() throws JMSException, NamingException {
+        LOG.info("Connecting to MQ Broker");
+        try {
+            Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+            return;
+        }
+        Hashtable<String, String> properties = new Hashtable<String, String>();
+        String path = new File("queue.properties").getAbsolutePath();
+        properties.put("java.naming.provider.url", path);
+        properties.put("java.naming.factory.initial", "org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
+        javax.jms.ConnectionFactory connectionFactory = null;
+        Context context = null;
+        try {
+            context = new InitialContext(properties);
+            connectionFactory = (ConnectionFactory) context.lookup("qpidConnectionfactory");
+        } catch (NamingException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        connection = (ConnectionImpl) connectionFactory.createConnection();
+//            connection.setClientID("dispatcher");
+        connection.start();
+        session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        this.dispatcher = (org.apache.qpid.amqp_1_0.jms.Queue) context.lookup("dispatcher");
+        messageConsumer = session.createConsumer(dispatcher);
+//            ((MessageConsumerImpl) messageConsumer).setMaxPrefetch(1);
+        org.apache.qpid.amqp_1_0.jms.Queue integration = (Queue) context.lookup("integration");
+        producer = session.createProducer(integration);
+        producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+        org.apache.qpid.amqp_1_0.jms.Queue endpoints = (Queue) context.lookup("endpoints");
+        endpointsProducer = session.createProducer(endpoints);
+        endpointsProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+        org.apache.qpid.amqp_1_0.jms.Queue selfProducerQueue = (Queue) context.lookup("uno");
+        selfProducer = session.createProducer(selfProducerQueue);
+        selfProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+
+        endpointManager.setSession(session);
+        endpointManager.setMessageProducer(producer);
+    }
 
     public ReceiverThread(EndpointManager endpointManager) {
         LOG.info("Receiver thread initialized");
         this.endpointManager = endpointManager;
 
-        LOG.info("Receiver ready");
         System.setProperty("max_prefetch", "1");
         try {
-            Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
-            Hashtable<String, String> properties = new Hashtable<String, String>();
-            String path = new File("queue.properties").getAbsolutePath();
-            properties.put("java.naming.provider.url", path);
-            properties.put("java.naming.factory.initial", "org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
-            Context context = new InitialContext(properties);
-            javax.jms.ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("qpidConnectionfactory");
-            connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
-//            connection.setClientID("dispatcher");
-            connection.start();
-            session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            this.dispatcher = (org.apache.qpid.amqp_1_0.jms.Queue) context.lookup("dispatcher");
-            messageConsumer = session.createConsumer(dispatcher);
-//            ((MessageConsumerImpl) messageConsumer).setMaxPrefetch(1);
-            org.apache.qpid.amqp_1_0.jms.Queue integration = (Queue) context.lookup("integration");
-            producer = session.createProducer(integration);
-            producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
-            org.apache.qpid.amqp_1_0.jms.Queue endpoints = (Queue) context.lookup("endpoints");
-            endpointsProducer = session.createProducer(endpoints);
-            endpointsProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
-            org.apache.qpid.amqp_1_0.jms.Queue selfProducerQueue = (Queue) context.lookup("uno");
-            selfProducer = session.createProducer(selfProducerQueue);
-            selfProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+            this.connect();
 
             Runtime.getRuntime().addShutdownHook(new ReceiverThreadShutdownHook());
-            endpointManager.setSession(session);
-            endpointManager.setMessageProducer(producer);
         } catch (Exception e) {
             LOG.error("Error when creating connection in dispatcher to ESB " + e.getMessage());
         }
@@ -122,6 +239,7 @@ public class ReceiverThread extends Thread {
                 try {
                     Object message = null;
 //                    LOG.debug("Receiver is waiting for a message");
+//                    try {
                     if (activated) {
 //                        LOG.info("Waiting");
 //                        MessageConsumerImpl mci2 = (MessageConsumerImpl) messageConsumer;
@@ -131,6 +249,18 @@ public class ReceiverThread extends Thread {
                     } else {
                         message = messageConsumer.receive(200);
                     }
+//                    } catch (JMSException e) {
+//                        connect();
+//                        if (activated) {
+//                        LOG.info("Waiting");
+//                        MessageConsumerImpl mci2 = (MessageConsumerImpl) messageConsumer;
+//                        mci2.
+//                            message = messageConsumer.receive(50);
+//                        LOG.info("Received");
+//                        } else {
+//                            message = messageConsumer.receive(200);
+//                        }
+//                    }
                     if (message == null && !activated) {
                         if (checkForEchoResponse) {
                             LOG.error("Echo message not found: there are another consumers or message routing issue");
@@ -164,9 +294,7 @@ public class ReceiverThread extends Thread {
                         TextMessage discoverMessage = session.createTextMessage();
                         discoverMessage.setSubject("discover");
                         discoverMessage.setStringProperty("messageId", UUID.randomUUID().toString());
-                        synchronized (producer) {
-                            producer.send(discoverMessage);            //send discover message to acquire connected endpoints
-                        }
+                        sendToProducer(discoverMessage);
                         activated = true;
                         continue;
                     }
@@ -183,10 +311,48 @@ public class ReceiverThread extends Thread {
                     String replyTo = textMessage.getReplyTo();
                     LOG.debug("replyTo: " + replyTo);
                     if (transactionId == null) transactionId = "";
-                    LOG.info("Receiver: Message arrived: " + routingKey + " with " + content + " (transaction: " + transactionId + ")");
+//                    LOG.info("Receiver: Message arrived: " + routingKey + " with " + content + " (transaction: " + transactionId + ")");
                     String[] keyParts = routingKey.split("\\.");
 
                     String action = keyParts[0].toLowerCase();
+
+                    String[] actions = {"got", "identifyresponse", "matchresponse", "unifyresponse", "specifyresponse", "checkresponse", "hello"};
+                    List<String> actionsList = Arrays.asList(actions);
+                    if (actionsList.contains(action)) {
+                        //merge chunks
+                        int number = textMessage.getIntProperty("number");
+                        int count = textMessage.getIntProperty("count");
+                        LOG.info("Data chunk (length: " + content.length() + ") " + number + "/" + count);
+
+                        if (!chunks.containsKey(messageId)) {
+                            chunks.put(messageId, "");
+                        }
+
+                        chunks.put(messageId, chunks.get(messageId) + content);
+                        if (number < count - 1) {
+                            endpointManager.interruptRequestThread(messageId);
+
+                            //notify requester
+                            LOG.info("Result message id: " + messageId);
+
+                            String replyMessageId = endpointManager.getResponseThread(messageId).getMessageId();
+                            LOG.info("Origin message id: " + replyMessageId);
+
+                            String reply = endpointManager.getReplyTo(messageId);
+                            TextMessage notifyMessage = session.createTextMessage();
+                            notifyMessage.setStringProperty("messageId", replyMessageId);
+                            notifyMessage.setStringProperty("transactionId", transactionId);
+                            notifyMessage.setSubject(reply);
+                            notifyMessage.setStringProperty("waiting", "true");
+                            LOG.info("Sending wait notify to ep: " + reply);
+                            sendToEndpointsProducer(notifyMessage, "");
+                            textMessage.acknowledge();
+                            continue;
+                        }
+                        content = chunks.get(messageId);
+                        chunks.remove(messageId);
+                        textMessage.acknowledge();
+                    }
 
                     switch (action) {
 
@@ -231,19 +397,19 @@ public class ReceiverThread extends Thread {
                             switch (action) {
                                 case "update":
                                     LOG.info("Receiver: Update notification " + className + " uuid: " + objectUuid + " Content: " + content);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, null);
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), null);
                                     break;
 
                                 case "remove":
                                     LOG.info("Receiver: Remove notification " + className + " uuid: " + objectUuid + " Content: " + content);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, null);
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), null);
                                     break;
 
                                 case "get":
                                     //add animation for get
 
                                     LOG.info("Receiver: Requesting class " + className + " uuid: " + objectUuid);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new GetResponseThread(transactionId, messageId, className));
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new GetResponseThread(transactionId, messageId, className));
                             }
 
                             if (th != null) {
@@ -270,19 +436,16 @@ public class ReceiverThread extends Thread {
                                 from = endpointManager.getEndpointIndex(replyTo);
                                 endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from);
                                 LOG.info("Receiver: Identify request for " + keyParts[1] + " " + uuid);
-                                th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new IdentifyResponseThread(transactionId, messageId));
+                                th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new IdentifyResponseThread(transactionId, messageId));
                                 th.start();
                             } else {
                                 TextMessage identifyResponse = session.createTextMessage();
                                 identifyResponse.setStringProperty("messageId", messageId);
                                 identifyResponse.setStringProperty("transactionId", transactionId);
-                                identifyResponse.setText(result);
                                 identifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
-                                synchronized (endpointsProducer) {
-                                    LOG.info("Sending to ep: " + identifyResponse);
-                                    endpointsProducer.send(identifyResponse);
-                                }
+                                LOG.info("Sending to ep: " + identifyResponse);
+                                sendToEndpointsProducer(identifyResponse, result);
                             }
                             break;
 
@@ -301,20 +464,16 @@ public class ReceiverThread extends Thread {
                                 from = endpointManager.getEndpointIndex(replyTo);
                                 endpointManager.sendAnimation(transactionId, routingKey, headers_id, colors.get(keyParts[0]), "-" + from); //get request
                                 LOG.info("Receiver: Unify request for " + keyParts[1] + " " + headers_id);
-                                th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new UnifyResponseThread(transactionId, messageId));
+                                th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<>(), new UnifyResponseThread(transactionId, messageId));
                                 th.start();
                             } else {
                                 TextMessage unifyResponse = session.createTextMessage();
                                 unifyResponse.setStringProperty("messageId", messageId);
                                 unifyResponse.setStringProperty("transactionId", transactionId);
-                                unifyResponse.setText(result);
                                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
-                                synchronized (endpointsProducer) {
-                                    LOG.info("Sending to ep: " + unifyResponse);
-                                    endpointsProducer.send(unifyResponse);
-                                }
-
+                                LOG.info("Sending to ep: " + unifyResponse);
+                                sendToEndpointsProducer(unifyResponse, result);
                             }
                             break;
                         case "specify":
@@ -322,9 +481,28 @@ public class ReceiverThread extends Thread {
                             from = endpointManager.getEndpointIndex(replyTo);
                             endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from); //get request
                             LOG.info("Receiver: Specifing class " + keyParts[1] + " uuid: " + uuid);
-                            th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new SpecifyResponseThread(transactionId, messageId, keyParts[1]));
+                            th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new SpecifyResponseThread(transactionId, messageId, keyParts[1]));
                             th.start();
                             break;
+                        case "matchall":
+                            if (!activated) continue;
+                            from = endpointManager.getEndpointIndex(replyTo);
+                            endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from);  //match request
+                            LOG.info("Matching for class " + keyParts[1]);
+                            //extract filters
+                            Enumeration<String> filters = textMessage.getPropertyNames();
+                            HashMap<String, String> filterData = new HashMap<>();
+                            while (filters.hasMoreElements()) {
+                                String filterName = filters.nextElement();
+                                if (filterName.startsWith("filter-")) {
+                                    String filterCondition = textMessage.getStringProperty(filterName);
+                                    filterData.put(filterName, filterCondition);
+                                }
+                            }
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new MatchResponseThread(transactionId, messageId));
+                            th.start();
+                            break;
+
                         case "check":
                             if (!activated) continue;
                             String checkClass = endpointManager.searchNearestCheckpoint(keyParts[1], keyParts[2]);
@@ -336,7 +514,7 @@ public class ReceiverThread extends Thread {
                             from = endpointManager.getEndpointIndex(replyTo);
                             endpointManager.sendAnimation(transactionId, routingKey, headers_id, colors.get(keyParts[0]), "-" + from); //get request
                             LOG.info("Receiver: Check request for " + keyParts[1] + " " + headers_id);
-                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new CheckResponseThread(transactionId, messageId));
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<>(), new CheckResponseThread(transactionId, messageId));
                             th.start();
                             break;
 
@@ -352,6 +530,13 @@ public class ReceiverThread extends Thread {
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             LOG.info("Unify response parsed");
+                            break;
+                        case "matchresponse":
+                            if (!activated) continue;
+                            LOG.info("Receiver: Match response " + keyParts[1]);
+                            endpointManager.reactivateSystem(keyParts[1]);
+                            endpointManager.gotResponse(messageId, keyParts[1], content);
+                            LOG.info("Match response parsed");
                             break;
                         case "identifyresponse":
                             if (!activated) continue;
@@ -387,14 +572,64 @@ public class ReceiverThread extends Thread {
         LOG.info("Leaving receiver thread");
     }
 
-    class GetResponseThread extends Thread {
-        private final String transactionId;
-        private final String messageId;
+    class MatchResponseThread extends ResponseThread {
+        public MatchResponseThread(String transactionId, String messageId) {
+            super(transactionId, messageId);
+        }
+
+
+        public void run() {
+            //response animation
+            endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), endpointManager.getResponseAnimation(messageId));
+            endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
+            LOG.debug("Merge responses accepted");
+            ArrayList<String> responses = endpointManager.getAllResponses(messageId);
+//            for (String response : responses) {
+//                LOG.debug("Response: " + response);
+//            }
+            //todo: merge responses
+            List<List<String>> allResponses = new ArrayList<>();
+            List<String> result = new ArrayList<>();
+            for (String response : responses) {
+                String[] splittedResponse = response.split(",");
+                List<String> al = Arrays.asList(splittedResponse);
+                allResponses.add(al);
+            }
+            if (allResponses.size() > 0) {
+                List<String> t = allResponses.get(0);
+                for (String ent : t) {
+                    boolean matchAll = true;
+                    for (int i = 1; i < allResponses.size(); i++)
+                        if (!allResponses.get(i).contains(ent)) {
+                            matchAll = false;
+                            break;
+                        }
+                    if (matchAll) result.add(ent);
+                }
+            }
+            String resultString = joinStrings(",", result.toArray(new String[0]));
+//            LOG.debug("Merged response: " + resultString);
+            try {
+                TextMessage matchResponse = session.createTextMessage();
+                matchResponse.setStringProperty("transactionId", transactionId);
+                matchResponse.setStringProperty("messageId", messageId);
+                matchResponse.setSubject(endpointManager.getReplyTo(messageId));
+                LOG.debug("Match response message: " + matchResponse + "; " + matchResponse.getText() + "|" + matchResponse.getStringProperty("messageId") + "|" + matchResponse.getSubject());
+                endpointManager.interruptRequestThread(messageId);
+                endpointManager.cleanupResponse(messageId);
+                LOG.info("Sending to ep: " + matchResponse);
+                sendToEndpointsProducer(matchResponse, resultString.toString());
+            } catch (JMSException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    class GetResponseThread extends ResponseThread {
         private final String className;
 
         public GetResponseThread(String transactionId, String messageId, String originalClassName) {
-            this.transactionId = transactionId;
-            this.messageId = messageId;
+            super(transactionId, messageId);
             this.className = originalClassName;
         }
 
@@ -419,28 +654,22 @@ public class ReceiverThread extends Thread {
                 TextMessage getResponse = session.createTextMessage();
                 getResponse.setStringProperty("transactionId", transactionId);
                 getResponse.setStringProperty("messageId", messageId);
-                getResponse.setText(resultString.toString());
                 getResponse.setSubject(endpointManager.getReplyTo(messageId));
                 LOG.debug("Get response message: " + getResponse + "; " + getResponse.getText() + "|" + getResponse.getStringProperty("messageId") + "|" + getResponse.getSubject());
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
-                synchronized (endpointsProducer) {
-                    LOG.info("Sending to ep: " + getResponse);
-                    endpointsProducer.send(getResponse);
-                }
+                LOG.info("Sending to ep: " + getResponse);
+                sendToEndpointsProducer(getResponse, resultString.toString());
             } catch (Exception e) {
                 LOG.error("Error when sending response");
             }
         }
     }
 
-    class UnifyResponseThread extends Thread {
-        private final String transactionId;
-        private final String messageId;
+    class UnifyResponseThread extends ResponseThread {
 
         public UnifyResponseThread(String transactionId, String messageId) {
-            this.transactionId = transactionId;
-            this.messageId = messageId;
+            super(transactionId, messageId);
         }
 
         public void run() {
@@ -462,16 +691,10 @@ public class ReceiverThread extends Thread {
                 TextMessage unifyResponse = session.createTextMessage();
                 unifyResponse.setStringProperty("messageId", messageId);
                 unifyResponse.setStringProperty("transactionId", transactionId);
-                unifyResponse.setText(response);
                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                 endpointManager.interruptRequestThread(messageId);
                 LOG.info("presync");
-                synchronized (endpointsProducer) {
-                    LOG.info("presend");
-                    endpointsProducer.send(unifyResponse);
-//                    endpointsProducer.
-                    LOG.info("postsend");
-                }
+                sendToEndpointsProducer(unifyResponse, response);
                 endpointManager.cleanupResponse(messageId);
                 LOG.info("Response sent");
 //                }
@@ -483,13 +706,10 @@ public class ReceiverThread extends Thread {
     }
 
 
-    class IdentifyResponseThread extends Thread {
-        private final String transactionId;
-        private final String messageId;
+    class IdentifyResponseThread extends ResponseThread {
 
         public IdentifyResponseThread(String transactionId, String messageId) {
-            this.transactionId = transactionId;
-            this.messageId = messageId;
+            super(transactionId, messageId);
         }
 
         public void run() {
@@ -515,16 +735,12 @@ public class ReceiverThread extends Thread {
                     TextMessage identifyResponse = session.createTextMessage();
                     identifyResponse.setStringProperty("messageId", messageId);
                     identifyResponse.setStringProperty("transactionId", transactionId);
-                    identifyResponse.setText(responseString);
                     identifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                     LOG.debug("Data: " + responseString + " message id: " + messageId);
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
-                    synchronized (endpointsProducer) {
-                        LOG.info("Sending to ep: " + identifyResponse);
-
-                        endpointsProducer.send(identifyResponse);
-                    }
+                    LOG.info("Sending to ep: " + identifyResponse);
+                    sendToEndpointsProducer(identifyResponse, responseString);
 //                    }
                 } else {
                     LOG.info("Receiver: Got identify response " + responseString + " and proceed to next action");
@@ -539,14 +755,11 @@ public class ReceiverThread extends Thread {
         }
     }
 
-    class SpecifyResponseThread extends Thread {
-        private final String transactionId;
-        private final String messageId;
+    class SpecifyResponseThread extends ResponseThread {
         private final String defaultValue;
 
         public SpecifyResponseThread(String transactionId, String messageId, String defaultValue) {
-            this.transactionId = transactionId;
-            this.messageId = messageId;
+            super(transactionId, messageId);
             this.defaultValue = defaultValue;
         }
 
@@ -581,15 +794,11 @@ public class ReceiverThread extends Thread {
                     TextMessage specifyResponse = session.createTextMessage();
                     specifyResponse.setStringProperty("messageId", messageId);
                     specifyResponse.setStringProperty("transactionId", transactionId);
-                    specifyResponse.setText(responseString);
                     specifyResponse.setSubject(specifyReplyTo);
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
-                    synchronized (endpointsProducer) {
-                        LOG.info("Sending to ep: " + specifyResponse);
-
-                        endpointsProducer.send(specifyResponse);
-                    }
+                    LOG.info("Sending to ep: " + specifyResponse);
+                    sendToEndpointsProducer(specifyResponse, responseString);
                 } else {
                     LOG.info("Receiver: Got specify response " + responseString + " and proceed to next action");
                     endpointManager.interruptRequestThread(messageId);
@@ -603,14 +812,10 @@ public class ReceiverThread extends Thread {
         }
     }
 
-    class CheckResponseThread extends Thread {
-
-        private final String transactionId;
-        private final String messageId;
+    class CheckResponseThread extends ResponseThread {
 
         public CheckResponseThread(String transactionId, String messageId) {
-            this.transactionId = transactionId;
-            this.messageId = messageId;
+            super(transactionId, messageId);
         }
 
         public void run() {
@@ -632,15 +837,11 @@ public class ReceiverThread extends Thread {
                 TextMessage checkResponse = session.createTextMessage();
                 checkResponse.setStringProperty("messageId", messageId);
                 checkResponse.setStringProperty("transactionId", transactionId);
-                checkResponse.setText(result);
                 checkResponse.setSubject(endpointManager.getReplyTo(messageId));
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
-                synchronized (endpointsProducer) {
-                    LOG.info("Sending to ep: " + checkResponse);
-
-                    endpointsProducer.send(checkResponse);
-                }
+                LOG.info("Sending to ep: " + checkResponse);
+                sendToEndpointsProducer(checkResponse, result);
 //                }
 
             } catch (Exception e) {
@@ -649,7 +850,6 @@ public class ReceiverThread extends Thread {
         }
 
     }
-
 
     class RequestThread extends Thread {
 
@@ -662,7 +862,8 @@ public class ReceiverThread extends Thread {
         protected String routingKey;
         protected String className;
         protected String content;
-        protected Thread responseThread;
+        protected ResponseThread responseThread;
+        protected HashMap<String, String> headers;
         protected String overridedClasses = null;
 
         protected ArrayList<RequestThread> chainThreads = new ArrayList<>();
@@ -670,7 +871,7 @@ public class ReceiverThread extends Thread {
         protected String originalRoutingKey;
         protected String originalClassName;
 
-        public RequestThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, Thread responseThread) {
+        public RequestThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, HashMap<String, String> headers, ResponseThread responseThread) {
             this.identifier = identifier;
             this.messageId = messageId;
             this.transactionId = transactionId;
@@ -681,6 +882,7 @@ public class ReceiverThread extends Thread {
             this.action = keySplitted[0];
             this.className = keySplitted[1];
             this.content = content;
+            this.headers = headers;
             this.responseThread = responseThread;
             LOG.info(action + " Thread initialized");
         }
@@ -694,6 +896,10 @@ public class ReceiverThread extends Thread {
                 request.setStringProperty("messageId", messageId);
                 request.setStringProperty("transactionId", transactionId);
                 request.setStringProperty((uuidCommands.contains(action.toLowerCase()) ? "uuid" : "id"), identifier);
+
+                for (String headerName : this.headers.keySet()) {
+                    request.setStringProperty(headerName, this.headers.get(headerName));
+                }
                 if (overridedClasses != null) {
                     request.setStringProperty("target", overridedClasses);
                 }
@@ -722,6 +928,11 @@ public class ReceiverThread extends Thread {
                         endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToEndpointIndexes(messageId));
                         break;
 
+                    case "match":
+                        endpointManager.addMatchRequest(routingKey, messageId, className, replyTo, this, headers, responseThread);
+                        endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToEndpointIndexes(messageId));
+                        break;
+
                     case "identify":
                     case "unify":
                         endpointManager.addIdentifierRequest(routingKey, messageId, className, identifierName, identifier, replyTo, this, responseThread);
@@ -730,9 +941,7 @@ public class ReceiverThread extends Thread {
 
                     case "update":
                         endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToUpdateEndpoints(className));
-                        synchronized (producer) {
-                            producer.send(request);
-                        }
+                        sendToProducer(request);
                         return;
 
                     case "remove":
@@ -743,7 +952,7 @@ public class ReceiverThread extends Thread {
                         for (String identifierName : as) {
                             String getIdsMessageId = UUID.randomUUID().toString();
                             String getIdsRoutingKey = "identify." + identifierName;
-                            Thread th = new RequestThread(transactionId, getIdsMessageId, identifier, getIdsReplyTo, getIdsRoutingKey, content, new IdentifyResponseThread(transactionId, getIdsMessageId));
+                            Thread th = new RequestThread(transactionId, getIdsMessageId, identifier, getIdsReplyTo, getIdsRoutingKey, content, new HashMap<>(), new IdentifyResponseThread(transactionId, getIdsMessageId));
                             th.start();
                             th.join();
 
@@ -755,15 +964,11 @@ public class ReceiverThread extends Thread {
                             }
                         }
                         endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToUpdateEndpoints(className));
-                        synchronized (producer) {
-                            producer.send(request);
-                        }
+                        sendToProducer(request);
                         return;
                 }
 
-                synchronized (producer) {
-                    producer.send(request);
-                }
+                sendToProducer(request);
                 Thread.sleep(3000);
                 endpointManager.timeoutResponse(messageId);
                 LOG.info(action + " response timeout");
@@ -787,8 +992,8 @@ public class ReceiverThread extends Thread {
 
     class SpecifyThread extends RequestThread {
 
-        public SpecifyThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, Thread responseThread) {
-            super(transactionId, messageId, identifier, replyTo, routingKey, content, responseThread);
+        public SpecifyThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, ResponseThread responseThread) {
+            super(transactionId, messageId, identifier, replyTo, routingKey, content, new HashMap<>(), responseThread);
         }
 
         public void run() {
@@ -807,7 +1012,7 @@ public class ReceiverThread extends Thread {
                 // replyTo is null
 
 
-                Thread th = new RequestThread(transactionId, specifyMessageId, identifier, specifyReplyTo, specifyRoutingKey, content, new SpecifyResponseThread(transactionId, specifyMessageId, clName));
+                Thread th = new RequestThread(transactionId, specifyMessageId, identifier, specifyReplyTo, specifyRoutingKey, content, new HashMap<>(), new SpecifyResponseThread(transactionId, specifyMessageId, clName));
                 th.start();
                 try {
                     th.join();
