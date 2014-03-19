@@ -25,7 +25,17 @@ import java.util.Iterator;
  public class DataClass {
         private String className;
         private String extend = null;
-        private boolean readOnly = false;
+        private boolean matchable = false;
+
+    public boolean isMatchable() {
+        return matchable;
+    }
+
+    public void setMatchable(boolean matchable) {
+        this.matchable = matchable;
+    }
+
+    private boolean readOnly = false;
         private boolean canSpecify = false;
 	    private boolean monolithic = false;
         private ArrayList<String> identifiers = new ArrayList<>();
@@ -75,6 +85,8 @@ import java.util.Iterator;
         public Iterator<DataElement> getElements() {
             return classElements.iterator();
         }
+
+
 
         public void setReadOnly(boolean readOnly) {
             this.readOnly = readOnly;

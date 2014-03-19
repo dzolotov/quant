@@ -69,6 +69,7 @@ public class GetHelper {
 
     public void put(String path, String value) {
         //todo: path normalization
+        LOG.info("Put to "+path+" value="+value);
         boolean found = false;
         for (DataElement element : schema) {
             if (element.getXPath().equalsIgnoreCase(path)) {

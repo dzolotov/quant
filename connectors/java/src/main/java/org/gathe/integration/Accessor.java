@@ -58,4 +58,6 @@ public interface Accessor {
     //perform data backup before remove (or as scheduled task)
     public boolean backup(String transactionId, String className, String uuid);
 
+    //get uuids subset for <className>, matching with <filters>
+    public String[] match(String transactionId, String className, HashMap<String,String> filters);
 }

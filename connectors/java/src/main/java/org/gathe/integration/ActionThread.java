@@ -25,10 +25,27 @@ import org.apache.log4j.Logger;
     private final int timeout;
     private boolean accepted;
     private final String action;
+    private boolean flags;
 
     public ActionThread(String action, int timeout) {
         this.timeout = timeout;
         this.action = action;
+        this.accepted = false;
+        this.flags = false;
+    }
+
+    public void reset() {
+        this.flags = false;
+    }
+
+    public void needContinue(boolean accepted) {
+        if (accepted) LOG.debug("Need to continue..."); else LOG.debug("Finished");
+        this.flags = accepted;
+        this.interrupt();
+    }
+
+    public boolean isNeedContinue() {
+        return this.flags;
     }
 
     public boolean isAccepted() {
@@ -38,6 +55,7 @@ import org.apache.log4j.Logger;
     public void run() {
         try {
             accepted = false;
+            LOG.info("Thread reloaded");
             Thread.sleep(timeout * 1000);
         } catch (InterruptedException e) {
             LOG.debug("Action thread terminated");

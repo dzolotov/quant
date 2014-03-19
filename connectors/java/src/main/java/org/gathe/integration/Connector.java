@@ -4,6 +4,7 @@ import org.apache.log4j.Logger;
 import org.apache.qpid.amqp_1_0.jms.Queue;
 import org.apache.qpid.amqp_1_0.jms.Session;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
+import org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -43,15 +44,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Connector extends Thread {
 
     //Destination queue to echo selfdiagnostics
-    final org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer;
+    org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer;
     //Destination queue to exchange messages with dispatcher
-    final org.apache.qpid.amqp_1_0.jms.MessageProducer uno;
+    org.apache.qpid.amqp_1_0.jms.MessageProducer uno;
     //Source queue for direct commands and data response
-    final org.apache.qpid.amqp_1_0.jms.MessageConsumer consumer;
+    org.apache.qpid.amqp_1_0.jms.MessageConsumer consumer;
     //Source queue for modification commands
-    final org.apache.qpid.amqp_1_0.jms.MessageConsumer modification;
+    org.apache.qpid.amqp_1_0.jms.MessageConsumer modification;
 
-    final org.apache.qpid.amqp_1_0.jms.Session session;
+    private String semaphore = "";
+
+    org.apache.qpid.amqp_1_0.jms.Session session;
     private boolean activated = false;
     private String id;
     private Accessor accessor;
@@ -66,33 +69,51 @@ public class Connector extends Thread {
 
     ArrayList<String> uuidCommands = new ArrayList<String>();
 
+    protected String joinStrings(String glue, String[] array) {
+        String line = "";
+        for (String s : array) line += s + glue;
+        return (array.length == 0) ? line : line.substring(0, line.length() - glue.length());
+    }
+
+    public void connect() throws JMSException {
+        System.setProperty("max_prefetch", "1");
+        try {
+            Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
+            Hashtable<String, String> properties = new Hashtable<String, String>();
+            String path = new File("queue.properties").getAbsolutePath();
+            properties.put("java.naming.provider.url", path);
+            properties.put("java.naming.factory.initial", "org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
+            Context context = new InitialContext(properties);
+            javax.jms.ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("qpidConnectionfactory");
+            org.apache.qpid.amqp_1_0.jms.Connection connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
+            connection.setClientID(id);
+            connection.start();
+            session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);    //???
+
+            org.apache.qpid.amqp_1_0.jms.Queue inbound = (Queue) context.lookup("inbound");
+            consumer = session.createConsumer(inbound);
+//        ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) consumer).setMaxPrefetch(1);
+
+            org.apache.qpid.amqp_1_0.jms.Queue modificationQueue = (Queue) context.lookup("modification");
+            modification = session.createConsumer(modificationQueue);
+//        ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) modification).setMaxPrefetch(1);
+
+            org.apache.qpid.amqp_1_0.jms.Queue selfQueue = (Queue) context.lookup("endpoints");
+            selfProducer = session.createProducer(selfQueue);
+
+            org.apache.qpid.amqp_1_0.jms.Queue outbound = (Queue) context.lookup("uno");
+            uno = session.createProducer(outbound);
+        }
+        catch (ClassNotFoundException | NamingException e) {
+            e.printStackTrace();
+        }
+    }
+
     public Connector(String id, Accessor accessor) throws ClassNotFoundException, NamingException, JMSException {
         this.id = id;
         this.accessor = accessor;
-        System.setProperty("max_prefetch", "1");
-        Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
-        Hashtable<String, String> properties = new Hashtable<String, String>();
-        String path = new File("queue.properties").getAbsolutePath();
-        properties.put("java.naming.provider.url", path);
-        properties.put("java.naming.factory.initial", "org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
-        Context context = new InitialContext(properties);
-        javax.jms.ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("qpidConnectionfactory");
-        org.apache.qpid.amqp_1_0.jms.Connection connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
-        connection.setClientID(id);
-        connection.start();
-        session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);    //???
 
-        org.apache.qpid.amqp_1_0.jms.Queue inbound = (Queue) context.lookup("inbound");
-        consumer = session.createConsumer(inbound);
-
-        org.apache.qpid.amqp_1_0.jms.Queue modificationQueue = (Queue) context.lookup("modification");
-        modification = session.createConsumer(modificationQueue);
-
-        org.apache.qpid.amqp_1_0.jms.Queue selfQueue = (Queue) context.lookup("endpoints");
-        selfProducer = session.createProducer(selfQueue);
-
-        org.apache.qpid.amqp_1_0.jms.Queue outbound = (Queue) context.lookup("uno");
-        uno = session.createProducer(outbound);
+        connect();
 
         Thread modificationThread = new ModificationThread();
         modificationThread.start();        //running parallel modification thread
@@ -107,14 +128,66 @@ public class Connector extends Thread {
         this.start();
     }
 
+    private void sendChunk(TextMessage textMessage, String chunk, int number, int count) {
+
+        synchronized (uno) {
+            try {
+                textMessage.setIntProperty("number",number);
+                textMessage.setIntProperty("count",count);
+                textMessage.setText(chunk);
+                uno.send(textMessage);
+            } catch (JMSException e) {
+                try {
+                    connect();
+                    textMessage.setIntProperty("number",number);
+                    textMessage.setIntProperty("count",count);
+                    textMessage.setText(chunk);
+                    uno.send(textMessage);
+                } catch (JMSException e2) {
+                    LOG.error("Twin error " + e.getLocalizedMessage());
+                }
+            }
+        }
+
+    }
+
+    public void sendToUno(TextMessage textMessage,String content) throws JMSException {
+
+        if (content.isEmpty()) {
+            sendChunk(textMessage, "", 0, 1);
+        }
+
+        int chunkSize = 32768;          //todo: define as parameter
+
+        //split message
+        String subject = textMessage.getSubject();
+        HashMap<String,String> headers = new HashMap<>();
+        Enumeration<String> props = textMessage.getPropertyNames();
+        while (props.hasMoreElements()) {
+            String prop = props.nextElement();
+            headers.put(prop, textMessage.getStringProperty(prop));
+        }
+
+        int count = (content.length()+(chunkSize-1)) / chunkSize;
+        for (int number=0;number<count;number++) {
+            TextMessage tm = this.session.createTextMessage();
+            tm.setSubject(subject);
+            for (String headerName : headers.keySet()) {
+                tm.setStringProperty(headerName, headers.get(headerName));
+            }
+            int maxLimit =(number+1)*chunkSize;
+            if (maxLimit>content.length()) maxLimit = content.length();
+            LOG.info("Sending chunk "+number+"/"+count+" Subject: "+subject+" Length: "+(maxLimit-(number*chunkSize)));
+            sendChunk(tm, content.substring(number*chunkSize, maxLimit), number, count);
+        }
+    }
+
     //aux method - send text message to dispatcher with specified subject and content
     public void sendTextMessage(String subject, String content) throws JMSException {
-        TextMessage textMessage = this.session.createTextMessage(content);
+        TextMessage textMessage = this.session.createTextMessage();
         LOG.info("Sending message with subject " + subject + " and content " + content);
         textMessage.setSubject(subject);
-        synchronized (uno) {
-            uno.send(textMessage);
-        }
+        sendToUno(textMessage,content);
     }
 
     //prepare schema announce from description
@@ -137,6 +210,7 @@ public class Connector extends Thread {
                 classElement.setAttribute("extends", schemaClass.getExtendClassName());
                 LOG.info("Extends: " + schemaClass.getExtendClassName());
             }
+            if (schemaClass.isMatchable()) classElement.setAttribute("matchable","true");
             if (schemaClass.isReadOnly()) classElement.setAttribute("readonly", "true");
             if (schemaClass.isSpecifiability()) classElement.setAttribute("specifiable", "true");
 
@@ -200,6 +274,10 @@ public class Connector extends Thread {
         this.doActionWithoutResponse("update", transactionId, className, uuid, null, content);
     }
 
+    public String matchAll(String transactionId, String className, HashMap<String,String> filters) throws JMSException {
+        return this.doMatchAction("matchAll", transactionId, className, filters);
+    }
+
 //end todo
 
     private void doActionWithoutResponse(String action, String transactionId, String className, String identifierValue, String suffix, String content) throws JMSException {
@@ -218,10 +296,71 @@ public class Connector extends Thread {
         actionMessage.setStringProperty("transactionId", transactionId);
         actionMessage.setSubject(action + "." + className + ((suffix != null) ? "." + suffix : ""));
         actionMessage.setStringProperty((uuidCommands.contains(action.toLowerCase()) ? "uuid" : "id"), identifierValue);
-        actionMessage.setText(content);
-        synchronized (uno) {
-            uno.send(actionMessage);
+        sendToUno(actionMessage,content);
+    }
+
+    private String doMatchAction(String action, String transactionId, String className, HashMap<String,String> filters) throws JMSException {
+        while (!activated) {
+            try {
+                LOG.debug("Waiting for activation");
+                Thread.sleep(100);
+            } catch (Exception e) {
+            }
         }
+        if (transactionId == null) transactionId = UUID.randomUUID().toString();
+        String messageId = UUID.randomUUID().toString();
+        TextMessage matchMessage = session.createTextMessage();
+        matchMessage.setReplyTo(this.id);
+        matchMessage.setStringProperty("messageId", messageId);
+        matchMessage.setStringProperty("transactionId", transactionId);
+        
+        for (String filterKey : filters.keySet()) {
+            matchMessage.setStringProperty("filter-" + filterKey, filters.get(filterKey));
+        }
+
+        matchMessage.setSubject(action + "." + className);
+        matchMessage.setStringProperty("uuid", "");
+        LOG.debug("Message sent. Reply to " + this.id + " messageId=" + messageId + " transaction=" + transactionId + " subject:" + action + "." + className);
+
+//        if (true) {
+        ActionThread actionThread = new ActionThread(action, 6);
+        LOG.debug("Stored to " + messageId + " ActionThread: " + actionThread);
+        responseThreads.put(messageId, actionThread);
+        boolean accepted = true;
+
+        sendToUno(matchMessage,"");
+        boolean flag = true;
+        actionThread.start();
+        while (flag) {
+            try {
+                actionThread.join();
+                synchronized (semaphore) {
+                    semaphore = "1";
+                    flag = actionThread.isNeedContinue();
+                    LOG.debug("Flag value: "+flag);
+                    if (flag) {
+                        actionThread = new ActionThread(action, 6);
+                        responseThreads.put(messageId, actionThread);
+                        actionThread.start();
+                    }
+                }
+            } catch (InterruptedException e) {
+//                LOG.debug("Thread interrupted");
+            }
+        }
+        accepted = actionThread.isAccepted();
+        LOG.debug("Response accepted: " + accepted);
+        if (accepted) {
+            String result = getResponse.get(messageId);
+            getResponse.remove(messageId);
+            responseThreads.remove(messageId);
+            return result;
+        }
+//        } else {
+//            responseThreads.put(messageId, null);
+//            return messageId;
+//        }
+        return "";
     }
 
     private String doAction(String action, String transactionId, String className, String identifierValue, String suffix, boolean async) throws JMSException {
@@ -242,19 +381,38 @@ public class Connector extends Thread {
         getMessage.setSubject(action + "." + className + ((suffix != null) ? "." + suffix : ""));
         getMessage.setStringProperty((uuidCommands.contains(action.toLowerCase()) ? "uuid" : "id"), identifierValue);
         LOG.debug("Message sent. Reply to " + this.id + " messageId=" + messageId + " transaction=" + transactionId + " subject:" + action + "." + className + ((suffix != null) ? "." + suffix : "") + " identifier: " + identifierValue);
-        synchronized (uno) {
-            uno.send(getMessage);
-        }
-        if (!async) {
+
+//        if (true) {
             ActionThread actionThread = new ActionThread(action, 5);
+            LOG.debug("Stored to "+messageId+" ActionThread: "+actionThread);
             responseThreads.put(messageId, actionThread);
-            actionThread.start();
             boolean accepted = true;
-            try {
-                actionThread.join();
-            } catch (InterruptedException e) {
-                LOG.debug("Thread interrupted");
+
+            sendToUno(getMessage,"");
+            boolean flag = true;
+            while (flag) {
+                try {
+                    actionThread.join();
+                    synchronized (semaphore) {
+                        semaphore = "2";
+                        flag = actionThread.isNeedContinue();
+                        LOG.debug("Flag value: "+flag);
+                        if (flag) {
+                            actionThread = new ActionThread(action, 6);
+                            responseThreads.put(messageId, actionThread);
+                            actionThread.start();
+                        }
+                    }
+                    LOG.debug("Flag value: "+flag);
+                } catch (InterruptedException e) {
+//                    flag = actionThread.isNeedContinue();
+//                    actionThread = new ActionThread(action, 5);
+//                    responseThreads.put(messageId, actionThread);
+                    LOG.debug("Thread interrupted");
+                }
+//                flag = actionThread.isNeedContinue();
             }
+
             accepted = actionThread.isAccepted();
             LOG.debug("Response accepted: " + accepted);
             if (accepted) {
@@ -263,10 +421,10 @@ public class Connector extends Thread {
                 responseThreads.remove(messageId);
                 return result;
             }
-        } else {
-            responseThreads.put(messageId, null);
-            return messageId;
-        }
+//        } else {
+//            responseThreads.put(messageId, null);
+//            return messageId;
+//        }
         return "";
     }
 
@@ -275,6 +433,7 @@ public class Connector extends Thread {
         LOG.info("Primary message loop initialized");
 
         isDisconnected = false;
+        HashMap<String,String> chunks = new HashMap<>();
 
         Boolean checkForEchoResponse = false;
         String echoMessageId = UUID.randomUUID().toString();
@@ -295,13 +454,26 @@ public class Connector extends Thread {
 
             while (!isDisconnected) {
                 try {
-                    LOG.debug("Waiting for message");
+//                    LOG.debug("Waiting for message");
                     Object message = null;
-                    if (activated) {
-                        message = consumer.receive();
-                    } else {
-                        message = consumer.receive(100);
-                    }
+//                    try {
+                        if (activated) {
+                            message = consumer.receive();
+                        } else {
+                            message = consumer.receive(100);
+                        }
+//                    } catch (JMSException e) {
+//                        try {
+//                            connect();
+//                            if (activated) {
+//                                message = consumer.receive();
+//                            } else {
+//                                message = consumer.receive(100);
+//                            }
+//                        } catch (JMSException e2) {
+//                            LOG.error("Twin error "+e.getLocalizedMessage());
+//                        }
+//                    }
 
                     if (message == null && !activated) {
                         if (checkForEchoResponse) {
@@ -361,9 +533,7 @@ public class Connector extends Thread {
                             TextMessage pingResponse = session.createTextMessage();
                             pingResponse.setStringProperty("transactionId", textMessage.getStringProperty("transactionId"));
                             pingResponse.setSubject("pong." + id);
-                            synchronized (uno) {
-                                uno.send(pingResponse);
-                            }
+                            sendToUno(pingResponse,"");
                             textMessage.acknowledge();
                             break;
                         case "get":
@@ -425,15 +595,73 @@ public class Connector extends Thread {
                             textMessage.acknowledge();
                             break;
 
+                        case "match":
+                            LOG.debug("Match query");
+                            className = keyParts[1];
+                            Enumeration<String> filters = textMessage.getPropertyNames();
+                            HashMap<String,String> filterData = new HashMap<>();
+                            while (filters.hasMoreElements()) {
+                                String filterName = filters.nextElement();
+                                if (filterName.startsWith("filter-")) {
+                                    String filterAttribute = filterName.substring(7);       //skip prefix
+                                    String filterCondition = textMessage.getStringProperty(filterName);
+                                    filterData.put(filterAttribute,filterCondition);
+                                }
+                            }
+                            new MatchThread(textMessage, className, filterData).start();
+                            textMessage.acknowledge();
+                            break;
+
                         default:
                             if (keyParts[0].equalsIgnoreCase(id)) {
+
+                                LOG.info("Accepted direct message");
+                                String messageId = textMessage.getStringProperty("messageId");
+                                LOG.info("MessageID: "+messageId);
+                                if (textMessage.getStringProperty("waiting")!=null) {
+                                    LOG.info("Waiting notify");
+                                    synchronized (semaphore) {
+                                        this.semaphore = "5";
+                                        ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
+//                                        responseThreads.get(messageId).interrupt();
+                                    }
+                                    textMessage.acknowledge();
+                                    continue;
+                                }
+
                                 LOG.debug("WOW. We have response!");
                                 LOG.debug("Response content: " + textMessage.getText());
-                                String messageId = textMessage.getStringProperty("messageId");
+                                LOG.debug("MessageID: "+textMessage.getStringProperty("messageId"));
+
+                                int number = textMessage.getIntProperty("number");
+                                int count = textMessage.getIntProperty("count");
+                                if (!chunks.containsKey(messageId)) {
+                                    chunks.put(messageId,"");
+                                }
+
+                                chunks.put(messageId, chunks.get(messageId)+textMessage.getText());
+                                LOG.info("Chunk length for "+messageId+" is "+chunks.get(messageId).length());
+                                if (number<count-1) {
+                                    synchronized (semaphore) {
+                                        this.semaphore = "3";
+                                        ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
+//                                        responseThreads.get(messageId).interrupt();
+                                    }
+                                    textMessage.acknowledge();
+                                    continue;
+                                }
+                                LOG.info("Mission completed");
+                                String content = chunks.get(messageId);
+                                chunks.remove(messageId);
+
                                 if (responseThreads.containsKey(messageId)) {
                                     if (responseThreads.get(messageId) != null) {
-                                        getResponse.put(messageId, "" + textMessage.getText());
-                                        responseThreads.get(messageId).interrupt();
+                                        synchronized (semaphore) {
+                                            this.semaphore = "4";
+                                            getResponse.put(messageId, content);
+                                            ((ActionThread) (responseThreads.get(messageId))).needContinue(false);
+//                                            responseThreads.get(messageId).interrupt();
+                                        }
                                     }
                                  }
                             }
@@ -486,9 +714,20 @@ public class Connector extends Thread {
                         } catch (Exception e) {
                         }
                     }
-                    LOG.debug("Waiting for modification message");
+//                    LOG.debug("Waiting for modification message");
                     Object message = null;
-                    message = modification.receive();
+//                    try {
+                        message = modification.receive();
+/*
+                    } catch (JMSException e) {
+                        try {
+                            connect();
+                            message = modification.receive();
+                        } catch (JMSException e2) {
+                            LOG.error("Twin error "+e2.getLocalizedMessage());
+                        }
+                    }
+*/
                     if (!(message instanceof TextMessage)) continue;    //skip empty
                     TextMessage textMessage = (TextMessage) message;
                     LOG.info("Arrived modification message " + textMessage.getSubject());
@@ -601,9 +840,7 @@ public class Connector extends Thread {
             try {
                 TextMessage textMessage = session.createTextMessage();
                 textMessage.setSubject("bye." + id);
-                synchronized (uno) {
-                    uno.send(textMessage);
-                }
+                sendToUno(textMessage,"");
             } catch (Exception e) {
             }
             LOG.info("Disconnecting");
@@ -708,14 +945,41 @@ public class Connector extends Thread {
                 TextMessage responseMessage;
                 responseMessage = session.createTextMessage();
                 responseMessage.setSubject("got." + id);
-                responseMessage.setText(response);
                 responseMessage.setStringProperty("transactionId", transactionId);
                 responseMessage.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
-                synchronized (uno) {
-                    uno.send(responseMessage);
-                }
+                sendToUno(responseMessage,response);
             } catch (JMSException e) {
                 LOG.error("Get message error "+e.getMessage());
+            }
+        }
+    }
+
+    class MatchThread extends AsyncThread {
+        String className;
+        HashMap<String,String> filters;
+
+        public MatchThread(TextMessage sourceMessage, String className, HashMap<String,String> filters) {
+            super(sourceMessage);
+            this.className = className;
+            this.filters = filters;
+        }
+
+        public void run() {
+            try {
+                String transactionId = sourceMessage.getStringProperty("transactionId");
+                String[] result = accessor.match(transactionId, className, filters);
+                TextMessage response;
+                String stringResult = joinStrings(",",result);
+                response = session.createTextMessage();
+                response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
+                response.setStringProperty("transactionId", transactionId);
+                response.setSubject("matchResponse."+id);
+                LOG.debug("Sending response. Subject: "+"matchResponse."+id+" TR: "+transactionId);
+//                LOG.debug("Response is "+stringResult);
+                sendToUno(response,stringResult);
+
+            } catch (JMSException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -743,14 +1007,12 @@ public class Connector extends Thread {
                 }
                 result = result.trim();
                 TextMessage response;
-                response = session.createTextMessage(result);
+                response = session.createTextMessage();
                 response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
                 response.setStringProperty("transactionId", transactionId);
                 response.setSubject("validateresponse."+id);
                 LOG.debug("Response is "+result);
-                synchronized (uno) {
-                    uno.send(response);
-                }
+                sendToUno(response,result);
             } catch (JMSException e) {
                 LOG.error("Error when validating entry");
             }
@@ -774,14 +1036,12 @@ public class Connector extends Thread {
                 String specifiedClassName = accessor.specify(transactionId, genericClassName, uuid);
                 if (specifiedClassName == null) specifiedClassName = "";
                 TextMessage response;
-                response = session.createTextMessage(specifiedClassName);
+                response = session.createTextMessage();
                 response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
                 response.setStringProperty("transactionId", transactionId);
                 response.setSubject("specifyResponse." + id);
                 LOG.debug("Response is " + specifiedClassName);
-                synchronized (uno) {
-                    uno.send(response);
-                }
+                sendToUno(response,specifiedClassName);
             } catch (JMSException e) {
                 LOG.error("Error when specifying: "+e.getMessage());
             }
@@ -811,14 +1071,12 @@ public class Connector extends Thread {
                 LOG.debug("Result is " + result);
                 if (result == null) result = "";
                 TextMessage response;
-                response = session.createTextMessage(result);
+                response = session.createTextMessage();
                 response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
                 response.setStringProperty("transactionId", transactionId);
                 response.setSubject("identifyResponse." + id);
                 LOG.debug("Response is " + result);
-                synchronized (uno) {
-                    uno.send(response);
-                }
+                sendToUno(response,result);
             } catch (JMSException e) {
                 LOG.error("Error when identifying "+e.getMessage());
             }
@@ -846,14 +1104,12 @@ public class Connector extends Thread {
                 LOG.debug("Result is " + result);
                 if (result == null) result = "";
                 TextMessage response;
-                response = session.createTextMessage(result);
+                response = session.createTextMessage();
                 response.setStringProperty("transactionId", transactionId);
                 response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
                 response.setSubject("unifyResponse." + id);
                 LOG.debug("Response is " + result);
-                synchronized (uno) {
-                    uno.send(response);
-                }
+                sendToUno(response,result);
             } catch (JMSException e) {
                 LOG.error("Error when unifying: "+e.getMessage());
             }
@@ -881,14 +1137,12 @@ public class Connector extends Thread {
                 Boolean result = accessor.checkByIdentifier(transactionId, className, identifierName, identifierValue);
                 if (result == null) result = new Boolean(false);
                 TextMessage response;
-                response = session.createTextMessage((result ? "true" : "false"));
+                response = session.createTextMessage();
                 response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
                 response.setSubject("checkResponse." + id);
                 response.setStringProperty("transactionId", transactionId);
                 LOG.debug("Response to is " + id + " " + result);
-                synchronized (uno) {
-                    uno.send(response);
-                }
+                sendToUno(response,(result ? "true" : "false"));
             } catch (JMSException e) {
                 LOG.error("Error when checking: "+e.getMessage());
             }
