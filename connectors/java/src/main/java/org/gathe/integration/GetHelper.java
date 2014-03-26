@@ -18,7 +18,7 @@ package org.gathe.integration;
 
  */
 
- import org.apache.log4j.Logger;
+import org.apache.log4j.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -69,9 +69,10 @@ public class GetHelper {
 
     public void put(String path, String value) {
         //todo: path normalization
-        LOG.info("Put to "+path+" value="+value);
+        LOG.info("Put to " + path + " value=" + value);
         boolean found = false;
         for (DataElement element : schema) {
+            LOG.info("Schema element: " + element.getXPath() + " (" + element.getDescription() + ")");
             if (element.getXPath().equalsIgnoreCase(path)) {
                 found = true;
                 break;
@@ -93,8 +94,8 @@ public class GetHelper {
 
     public void fillXML(Document doc, Element parent, String topPath, int pos) {
         ArrayList<String> level = new ArrayList<>();
-        LOG.info("TopPath: "+topPath);
-        LOG.info("Pos: "+pos);
+        LOG.info("TopPath: " + topPath);
+        LOG.info("Pos: " + pos);
         String[] top = topPath.split("/");
         for (String resultKey : result.keySet()) {
             String[] split = resultKey.split("/");
@@ -107,7 +108,7 @@ public class GetHelper {
                     }
                 if (!match) continue;
                 String key = split[pos];
-                LOG.info("Checking for key "+key);
+                LOG.info("Checking for key " + key);
                 if (!level.contains(key)) {
                     level.add(key);
                     LOG.info("Added subelement of level " + pos + " " + key);
@@ -115,11 +116,11 @@ public class GetHelper {
                     parent.appendChild(subElement);
                     LOG.info("Pos: " + (pos + 1) + " LN: " + split.length);
                     if (pos + 1 == split.length) {
-                        LOG.info(key+" is a leaf");
+                        LOG.info(key + " is a leaf");
                         LOG.info(topPath + "/" + key);
                         subElement.setTextContent(result.get(topPath + "/" + key));
                     } else {
-                        LOG.info("Deeping to "+key+" from "+topPath);
+                        LOG.info("Deeping to " + key + " from " + topPath);
                         fillXML(doc, subElement, topPath + "/" + key, pos + 1);
                     }
                 }

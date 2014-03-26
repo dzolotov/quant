@@ -1,6 +1,9 @@
 package org.gathe.integration.db;
 
-import org.gathe.integration.*;
+import org.gathe.integration.AccessorField;
+import org.gathe.integration.DSBindingDatabase;
+import org.gathe.integration.DataClass;
+import org.gathe.integration.DatasetAccessor;
 
 import javax.sql.DataSource;
 import javax.xml.bind.JAXBContext;
@@ -9,11 +12,9 @@ import javax.xml.bind.Unmarshaller;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -136,7 +137,7 @@ public class DBAccessor extends DatasetAccessor {
                 for (AccessorField field : schema.getSchemaFields()) {
                     String name = ((DBFieldJAXB) field).getName();
                     String path = this.getPath(name);
-//		    LOG.debug("Extracting field: "+name+" path: "+path);
+//        		    LOG.debug("Extracting field: "+name+" path: "+path+" value: "+rs.getString(name));
                     row.put(path, rs.getString(name));
                 }
                 result.add(row);
@@ -167,14 +168,162 @@ public class DBAccessor extends DatasetAccessor {
     }
 
     @Override
-    public boolean updateData(String className, String identifierName, String identifierValue, UpdateHelper row) {
-        //todo
-        return false;
+    public boolean updateData(String className, String identifierName, String identifierValue, HashMap<String, String> newData) {
+        LOG.debug("Updating data in database (class: " + className + ") for identifier:" + identifierName + "=" + identifierValue);
+
+        String tableName = ((DBSchemaJAXB) schema).getTable();
+
+        for (String key : newData.keySet()) {
+            LOG.debug("=== " + key + " = " + newData.get(key));
+        }
+        LOG.debug("=================================");
+        identifierName = identifierName.substring(identifierName.indexOf(":") + 1);
+
+        ArrayList<String> values = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+
+        String identifierField = "";
+
+        for (String fieldPath : newData.keySet()) {
+            for (AccessorField field : schema.getSchemaFields()) {
+
+
+                if (field.isIdentifier() && field.getId().equalsIgnoreCase(identifierName)) {
+                    identifierField = ((DBFieldJAXB) field).getName();
+                }
+
+                String key = field.getKey();
+                String path = this.getPath(key);
+                if (fieldPath.equalsIgnoreCase(path)) {
+                    names.add(((DBFieldJAXB) field).getName());
+                    values.add(newData.get(fieldPath));
+                }
+            }
+        }
+
+        String query = "UPDATE " + tableName + " SET ";
+        boolean first = true;
+        for (String name : names) {
+            if (!first) query += ",";
+            first = false;
+            query += (name + "=?");
+        }
+        query += " WHERE " + identifierField + "=?";
+        LOG.debug("Query: " + query);
+
+        try {
+            PreparedStatement ps = this.connection.prepareStatement(query);
+            int index = 1;
+            for (String value : values) {
+                ps.setString(index, value);
+                index++;
+            }
+            ps.setString(index, identifierValue);
+
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            LOG.error("Error when updating: " + e.getLocalizedMessage());
+            return false;
+        }
     }
 
     @Override
-    public HashMap<String, String> insertData(String className, String identifierName, String identifierValue, UpdateHelper row) {
+    public HashMap<String, String> insertData(String className, String identifierName, String identifierValue, HashMap<String, String> newData) {
         //todo
+        LOG.debug("Inserting data into database (class: " + className + ") for identifier:" + identifierName + "=" + identifierValue);
+        for (String key : newData.keySet()) {
+            LOG.debug("=== " + key + " = " + newData.get(key));
+        }
+        LOG.debug("=================================");
+
+        String tableName = ((DBSchemaJAXB) schema).getTable();
+
+        for (String key : newData.keySet()) {
+            LOG.debug("=== " + key + " = " + newData.get(key));
+        }
+
+        LOG.debug("=================================");
+        identifierName = identifierName.substring(identifierName.indexOf(":") + 1);
+
+        ArrayList<String> values = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+
+        String identifierField = "";
+
+        for (String fieldPath : newData.keySet()) {
+            for (AccessorField field : schema.getSchemaFields()) {
+
+                if (field.isIdentifier() && field.getId().equalsIgnoreCase(identifierName)) {
+                    identifierField = ((DBFieldJAXB) field).getName();
+                }
+
+                String key = field.getKey();
+                String path = this.getPath(key);
+                if (fieldPath.equalsIgnoreCase(path)) {
+                    names.add(((DBFieldJAXB) field).getName());
+                    values.add(newData.get(fieldPath));
+                }
+            }
+        }
+
+        //register identifier!
+        if (identifierValue != null) {
+            names.add(identifierField);
+            values.add(identifierValue);
+        }
+
+        String query = "INSERT INTO " + tableName + " (";
+        boolean first = true;
+        for (String name : names) {
+            if (!first) query += ",";
+            first = false;
+            query += name;
+        }
+
+        query += ") VALUES (";
+        first = true;
+        for (int i = 0; i < names.size(); i++) {
+            if (!first) query += ",";
+            query += "?";
+        }
+        query += ")";
+        LOG.debug("Query: " + query);
+        HashMap<String, String> keyResult = new HashMap<>();
+        try {
+            PreparedStatement ps = this.connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
+            int index = 1;
+            for (String value : values) {
+                ps.setString(index, value);
+                index++;
+            }
+            ps.executeUpdate();
+            ResultSet keys = ps.getGeneratedKeys();
+
+            String[] idNames = identifierName.split(",");
+            List<String> idList = new ArrayList<>(Arrays.asList(idNames));
+
+            while (keys.next()) {
+                ResultSetMetaData rsMetaData = keys.getMetaData();
+                int columnCount = rsMetaData.getColumnCount();
+
+//                for (int i = 1; i <= columnCount; i++) {
+                String key = keys.getString(1);
+                keyResult.put(this.systemId + ":" + identifierName, key);
+//                    LOG.debug("Key found: "+i+": "+rsMetaData.getColumnName(i));
+//                    String keyName = rsMetaData.getColumnName(i);
+//                    String key = keys.getString(i);
+//                    if (idList.contains(keyName)) {
+//                        LOG.debug("Associate key "+keyName+" with "+key);
+//                        keyResult.put(keyName, key);
+//                    }
+//                    System.out.println("key " + i + " is " + key);
+//                }
+            }
+            return keyResult;
+        } catch (SQLException se) {
+            LOG.error("Error when inserting: " + se.getLocalizedMessage());
+        }
         return null;
     }
 

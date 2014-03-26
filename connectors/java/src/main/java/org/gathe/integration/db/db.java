@@ -85,6 +85,8 @@ class DBFieldJAXB extends AccessorField {
 
     String ref = null;
 
+    String defaultValue = null;
+
     @XmlElement(name = "replace")
     private List<ReplaceJAXB> replaces;
 
@@ -150,6 +152,15 @@ class DBFieldJAXB extends AccessorField {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    @XmlAttribute
+    public String getDefault() {
+        return this.defaultValue;
+    }
+
+    public void setDefault(String defaultValue) {
+        this.defaultValue = defaultValue;
     }
 
     public String toString() {

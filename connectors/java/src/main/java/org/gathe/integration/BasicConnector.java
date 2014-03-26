@@ -86,7 +86,7 @@ public class BasicConnector extends Thread implements Connector {
         try {
             Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
             Hashtable<String, String> properties = new Hashtable<String, String>();
-            String path = new File("queue.properties").getAbsolutePath();
+            String path = new File(id + ".properties").getAbsolutePath();
             properties.put("java.naming.provider.url", path);
             properties.put("java.naming.factory.initial", "org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
             Context context = new InitialContext(properties);
@@ -279,77 +279,156 @@ public class BasicConnector extends Thread implements Connector {
     }
 
     @Override
-    public String get(String transactionId, String className, String uuid, boolean async) throws JMSException {
+    public String get(String transactionId, String className, String uuid, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        String result = this.doAction("get", transactionId, className, uuid, null, async);
+        String result;
+        if (!isLocalRequest) {
+            result = this.doAction("get", transactionId, className, uuid, null, async);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            GetHelper getHelper = new GetHelper(uuid, transactionId, className);
+
+            for (DataClass cls : this.schema.keySet()) {
+                if (cls.getClassName().equalsIgnoreCase(className)) {
+                    Iterator<DataElement> delIterator = cls.getElements();
+                    while (delIterator.hasNext()) {
+                        DataElement del = delIterator.next();
+                        getHelper.addElementToSchema(del);
+                    }
+                }
+            }
+
+            if (accessor.get(className, getHelper)) {
+                result = getHelper.transformToXml();
+            } else {
+                result = "";
+            }
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
     }
 
     @Override
-    public String unify(String transactionId, String className, String identifier, String identifierValue, boolean async) throws JMSException {
+    public String unify(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        String result = this.doAction("unify", transactionId, className, identifierValue, identifier, async);
+        String result;
+        if (!isLocalRequest) {
+            result = this.doAction("unify", transactionId, className, identifierValue, identifier, async);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            result = accessor.getUuidByIdentifier(null, className, identifier, identifierValue);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
     }
 
     @Override
-    public String identify(String transactionId, String className, String identifier, String identifierValue, boolean async) throws JMSException {
+    public String identify(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        String result = this.doAction("identify", transactionId, className, identifierValue, identifier, async);
+        String result;
+        if (!isLocalRequest) {
+            result = this.doAction("identify", transactionId, className, identifierValue, identifier, async);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            result = accessor.getIdentifierByUuid(null, className, identifier, identifierValue);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
 //        return this.doAction("identify", transactionId, className, identifierValue, identifier, async);
     }
 
     @Override
-    public boolean check(String transactionId, String className, String identifier, String identifierValue, boolean async) throws JMSException {
+    public String identify(String transactionId, String className, String identifier, String identifierValue, boolean async) throws JMSException {
+        return this.identify(transactionId, className, identifier, identifierValue, async, false);
+    }
+
+    @Override
+    public boolean check(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        boolean result = this.doAction("check", transactionId, className, identifierValue, identifier, async).equalsIgnoreCase("true");
+        boolean result;
+        if (!isLocalRequest) {
+            result = this.doAction("check", transactionId, className, identifierValue, identifier, async).equalsIgnoreCase("true");
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            result = accessor.checkByIdentifier(transactionId, className, identifier, identifierValue);
+        }
+
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
     }
 
     @Override
-    public String specify(String transactionId, String className, String uuid, boolean async) throws JMSException {
+    public String specify(String transactionId, String className, String uuid, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        String result = this.doAction("specify", transactionId, className, uuid, null, async);
+        String result;
+        if (!isLocalRequest) {
+            result = this.doAction("specify", transactionId, className, uuid, null, async);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            result = accessor.specify(transactionId, className, uuid);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
     }
 
     @Override
-    public void remove(String transactionId, String className, String uuid) throws JMSException {
+    public void remove(String transactionId, String className, String uuid, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        this.doActionWithoutResponse("remove", transactionId, className, uuid, null, "");
+        if (!isLocalRequest) {
+            this.doActionWithoutResponse("remove", transactionId, className, uuid, null, "");
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            accessor.remove(transactionId, className, uuid);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
     }
 
     @Override
-    public void update(String transactionId, String className, String uuid, String content) throws JMSException {
+    public void update(String transactionId, String className, String uuid, String content, boolean isLocalRequest) throws JMSException {
+        LOG.debug("Updating for " + className + ": " + uuid + " content: " + content);
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        this.doActionWithoutResponse("update", transactionId, className, uuid, null, content);
+        if (!isLocalRequest) {
+            this.doActionWithoutResponse("update", transactionId, className, uuid, null, content);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            UpdateHelper uh = new UpdateHelper(uuid, transactionId);
+            for (DataClass cls : this.schema.keySet()) {
+                if (cls.getClassName().equalsIgnoreCase(className)) {
+                    Iterator<DataElement> delIterator = cls.getElements();
+                    while (delIterator.hasNext()) {
+                        DataElement del = delIterator.next();
+                        uh.addElementToSchema(del);
+                    }
+                }
+            }
+            uh.transformFromXML(content);
+            accessor.update(className, uh);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
     }
 
     @Override
-    public String matchAll(String transactionId, String className, HashMap<String, String> filters, boolean async) throws JMSException {
+    public String matchAll(String transactionId, String className, HashMap<String, String> filters, boolean async, boolean isLocalRequest) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
-        String result = this.doMatchAction("matchAll", transactionId, className, filters, async);
+        String result;
+        if (!isLocalRequest) {
+            result = this.doMatchAction("matchAll", transactionId, className, filters, async);
+        } else {
+            Accessor accessor = this.getAccessor(className);
+            String[] results = accessor.match(transactionId, className, filters);
+            result = this.joinStrings(",", results);
+        }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
     }
-
-//end todo
 
     private void doActionWithoutResponse(String action, String transactionId, String className, String identifierValue, String suffix, String content) throws JMSException {
         while (!activated) {
@@ -373,12 +452,22 @@ public class BasicConnector extends Thread implements Connector {
 
     @Override
     public String get(String className, String uuid) throws JMSException {
-        return this.get(null, className, uuid, false);
+        return this.get(null, className, uuid, false, false);
+    }
+
+    @Override
+    public String get(String className, String uuid, boolean isLocalRequest) throws JMSException {
+        return this.get(null, className, uuid, false, isLocalRequest);
+    }
+
+    @Override
+    public String unify(String className, String identifier, String identifierValue, boolean isLocalRequest) throws JMSException {
+        return this.unify(null, className, identifier, identifierValue, false, isLocalRequest);
     }
 
     @Override
     public String unify(String className, String identifier, String identifierValue) throws JMSException {
-        return this.unify(null, className, identifier, identifierValue, false);
+        return this.unify(null, className, identifier, identifierValue, false, false);
     }
 
     @Override
@@ -387,28 +476,53 @@ public class BasicConnector extends Thread implements Connector {
     }
 
     @Override
+    public boolean check(String className, String identifier, String identifierValue, boolean isLocalRequest) throws JMSException {
+        return this.check(null, className, identifier, identifierValue, false, isLocalRequest);
+    }
+
+    @Override
     public boolean check(String className, String identifier, String identifierValue) throws JMSException {
-        return this.check(null, className, identifier, identifierValue, false);
+        return this.check(null, className, identifier, identifierValue, false, false);
+    }
+
+    @Override
+    public String specify(String className, String uuid, boolean isLocalRequest) throws JMSException {
+        return this.specify(null, className, uuid, false, isLocalRequest);
     }
 
     @Override
     public String specify(String className, String uuid) throws JMSException {
-        return this.specify(null, className, uuid, false);
+        return this.specify(null, className, uuid, false, false);
+    }
+
+    @Override
+    public void remove(String className, String uuid, boolean isLocalRequest) throws JMSException {
+        this.remove(null, className, uuid, isLocalRequest);
     }
 
     @Override
     public void remove(String className, String uuid) throws JMSException {
-        this.remove(null, className, uuid);
+        this.remove(null, className, uuid, false);
+    }
+
+    @Override
+    public void update(String className, String uuid, String content, boolean isLocalRequest) throws JMSException {
+        this.update(null, className, uuid, content, isLocalRequest);
     }
 
     @Override
     public void update(String className, String uuid, String content) throws JMSException {
-        this.update(null, className, uuid, content);
+        this.update(null, className, uuid, content, false);
+    }
+
+    @Override
+    public String matchAll(String className, HashMap<String, String> filters, boolean isLocalRequest) throws JMSException {
+        return this.matchAll(null, className, filters, false, isLocalRequest);
     }
 
     @Override
     public String matchAll(String className, HashMap<String, String> filters) throws JMSException {
-        return this.matchAll(null, className, filters, false);
+        return this.matchAll(null, className, filters, false, false);
     }
 
     @Override

@@ -142,12 +142,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
     public HashMap<String, String> transform(HashMap<String, String> row) {
 
         for (String key : row.keySet()) {
-            LOG.debug("Row data: " + key + " " + row.get(key));
+//            LOG.debug("Row data: " + key + " " + row.get(key));
             //if (key.startsWith("#")) continue;      //don't skip identifier
             List<AccessorField> fields = schema.getSchemaFields();
             for (AccessorField field : fields) {
 
-                LOG.debug("Checking field " + field);
+//                LOG.debug("Checking field " + field);
 
                 boolean matchedField = false;
                 if (field.isIdentifier()) {
@@ -212,16 +212,16 @@ public abstract class DatasetAccessor extends BaseAccessor {
      * Compare records
      *
      * @param row    data row
-     * @param helper update helper object
+     * @param rowData update helper object
      * @return true if identical
      */
 
-    public boolean equals(HashMap<String, String> row, UpdateHelper helper) {
+    public boolean equals(HashMap<String, String> row, HashMap<String, String> rowData) {
         for (String rowKey : row.keySet()) {
-            if (!rowKey.startsWith("#")) continue;          //skip identifiers
+            if (rowKey.startsWith("#")) continue;          //skip identifiers
             //todo: check scope
-            if (helper.get(rowKey) != null) {
-                if (!helper.get(rowKey).trim().equalsIgnoreCase(row.get(rowKey).trim())) return false;
+            if (rowData.containsKey(rowKey)) {
+                if (!rowData.get(rowKey).trim().equalsIgnoreCase(row.get(rowKey).trim())) return false;
             }
         }
         return true;
@@ -237,7 +237,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
      * @return true if success
      */
 
-    public abstract boolean updateData(String className, String identifierName, String identifierValue, UpdateHelper row);
+    public abstract boolean updateData(String className, String identifierName, String identifierValue, HashMap<String, String> row);
 
     /**
      * Insert new data row to real dataset
@@ -249,7 +249,29 @@ public abstract class DatasetAccessor extends BaseAccessor {
      * @return Hashmap for new keys data
      */
 
-    public abstract HashMap<String, String> insertData(String className, String identifierName, String identifierValue, UpdateHelper row);
+    public abstract HashMap<String, String> insertData(String className, String identifierName, String identifierValue, HashMap<String, String> row);
+
+    private String reverseReplace(AccessorField field, String value) {
+        if (field.getReplaces() == null || field.getReplaces().size() == 0) return value;
+        List<ReplaceJAXB> replaces = field.getReplaces();
+        for (ReplaceJAXB replace : replaces) {
+            if (replace.getTo().equalsIgnoreCase(value)) {
+                return replace.getFrom();
+            }
+        }
+        return value;
+    }
+
+
+    private void fillDefaultValues(HashMap<String, String> newData) {
+        //set default value (when update)
+        for (AccessorField field : schema.getSchemaFields()) {
+            String path = this.getPath(field.getKey());
+            if (!newData.containsKey(path) && field.getDefault() != null) {
+                newData.put(path, field.getDefault());
+            }
+        }
+    }
 
     /**
      * Update record!
@@ -261,6 +283,34 @@ public abstract class DatasetAccessor extends BaseAccessor {
     @Override
     public boolean update(String className, UpdateHelper helper) {
         String uuid = helper.getUuid();
+        LOG.debug("DS Update: " + uuid);
+
+        //preprocessing helper!
+        HashMap<String, String> newData = helper.getPatch();
+        for (String key : newData.keySet()) {
+            LOG.debug("Old value for " + key + " is " + newData.get(key));
+            for (AccessorField field : schema.getSchemaFields()) {
+                String path = this.getPath(field.getKey());
+                if (!path.equalsIgnoreCase(key)) continue;
+                if (field.getRef() != null) {
+                    String ref = field.getRef();
+                    int classDelimiter = ref.indexOf(".");
+                    String refClass = ref.substring(0, classDelimiter);
+                    String refId = ref.substring(classDelimiter + 1);
+                    LOG.debug("Resolving ref of " + refClass + " to " + refId);
+                    try {
+                        String resolvedId = connector.identify(helper.getTransactionId(), refClass, refId, newData.get(key), false, false);
+                        newData.put(key, resolvedId);
+                    } catch (JMSException e) {
+                    }
+                    ;
+                } else {
+                    String value = this.reverseReplace(field, newData.get(key));
+                    newData.put(key, value);
+                }
+            }
+            LOG.debug("Value for " + key + " is " + newData.get(key));
+        }
 
         try {
             PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND disabled=0");
@@ -269,10 +319,13 @@ public abstract class DatasetAccessor extends BaseAccessor {
             if (rs.next()) {
                 String id = rs.getString("id");
                 String identifier = rs.getString("name");
+                LOG.debug("Binding found for " + identifier + ":" + id);
+
                 if (this.checkByIdentifier(helper.getTransactionId(), className, identifier, id)) {
-                    return updateData(className, identifier, id, helper);           //update existing!
+                    return updateData(className, identifier, id, newData);           //update existing!
                 } else {
-                    return (insertData(className, identifier, id, helper) != null);      //rebind existing!
+                    fillDefaultValues(newData);
+                    return (insertData(className, identifier, id, newData) != null);      //recreate!
                 }
             }
 
@@ -282,13 +335,19 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 HashMap<String, String> row = data.get(i);
                 row = this.transform(row);
                 //searching for full match
-                if (this.equals(row, helper)) {
+                if (this.equals(row, newData)) {
+
+                    for (String rowKey : row.keySet()) {
+                        LOG.debug("Row: " + rowKey + "=" + row.get(rowKey));
+                    }
+
+                    LOG.debug("Found full match!");
                     String[] idents = identifiers.keySet().toArray(new String[0]);
                     String hash = this.getHash(row);
                     //bind with all identifiers
                     for (String identifierName : idents) {
                         String id = row.get("#" + identifierName);
-                        PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,name,disabled,actual,value,hash) VALUES (?,?,?,0,NOW(),'',?)");
+                        PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,name,id,disabled,actual,value,hash) VALUES (?,?,?,0,NOW(),'',?)");
                         uuidUpdate.setString(1, uuid);
                         uuidUpdate.setString(2, identifierName);
                         uuidUpdate.setString(3, id);
@@ -297,8 +356,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     }
                     String id0 = idents[0];
                     String val0 = row.get("#" + id0);
+                    LOG.debug("ID: " + id0 + " val:" + val0);
                     //if (this.checkByIdentifier(helper.getTransactionId(), className, identifier, id)) {
-                    return updateData(className, id0, val0, helper);           //update existing!
+                    return updateData(className, id0, val0, newData);           //update existing!
                     //} else {
                     //   return (insertData(className, identifier, id, helper)!=null);      //rebind existing!
                     //}
@@ -306,6 +366,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
             }
 
             //add new record!
+            LOG.debug("Adding new record");
             String newUuid = UUID.randomUUID().toString();
             String classIdentifiers = "";
             for (String ks : identifiers.keySet()) {
@@ -313,7 +374,8 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 classIdentifiers += ks;
             }
 
-            HashMap<String, String> keys = insertData(className, classIdentifiers, null, helper);
+            fillDefaultValues(newData);
+            HashMap<String, String> keys = insertData(className, classIdentifiers, null, newData);
             if (keys == null) return false;
             //register bindings
             for (String key : keys.keySet()) {
@@ -403,7 +465,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                                 String identifier = field.getId();
                                 String uuidGlobal = null;
                                 try {
-                                    uuidGlobal = connector.unify(transactionId, className, identifier, row.get("#" + identifier), false);
+                                    uuidGlobal = connector.unify(transactionId, className, identifier, row.get("#" + identifier), false, false);
                                 } catch (JMSException e) {
                                 }
                                 LOG.info("Found in global scope: " + uuidGlobal);
@@ -450,6 +512,15 @@ public abstract class DatasetAccessor extends BaseAccessor {
         LOG.info("Resolved identifier: " + id);
         String identifierName = idents[0];
         HashMap<String, String> row = getRow(identifierName, id, true);
+
+        //fill default values
+        for (AccessorField field : schema.getSchemaFields()) {
+            String path = this.getPath(field.getKey());
+            if (field.getDefault() != null && (!row.containsKey(path) || row.get(path) == null)) {
+                row.put(path, field.getDefault());
+            }
+        }
+
         if (row == null) return true;
         else {
 //        for (int i = 0; i < data.size(); i++) {
@@ -477,7 +548,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     String referencedClass = referenced.substring(0, referenced.indexOf("."));
                     String referencedId = referenced.substring(referenced.indexOf(".") + 1);
                     try {
-                        helper.put(rowKey, connector.unify(helper.getTransactionId(), referencedClass, referencedId, row.get(rowKey), false));
+                        helper.put(rowKey, connector.unify(helper.getTransactionId(), referencedClass, referencedId, row.get(rowKey), false, false));
                     } catch (JMSException e) {
                         LOG.error("Error when resolving: " + e.getLocalizedMessage());
                     }
