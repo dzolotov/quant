@@ -1,7 +1,5 @@
 package org.gathe.integration;
 
-import org.w3c.dom.Document;
-
 import java.util.HashMap;
 import java.util.List;
 
@@ -60,4 +58,6 @@ public interface Accessor {
 
     //get uuids subset for <className>, matching with <filters>
     public String[] match(String transactionId, String className, HashMap<String,String> filters);
+
+    public boolean isModified(String transactionId, String className, String uuid);
 }
