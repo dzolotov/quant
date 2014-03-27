@@ -52,6 +52,8 @@ public class EndpointManager {
     private ConcurrentHashMap<String, Thread> threads = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, String> identifiers = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, String> replies = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> classNames = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, HashMap<String,String>> headers = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, ResponseThread> responseThreads = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, HashMap<String, String>> waitingList = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, ArrayList<String>> responses = new ConcurrentHashMap<>();
@@ -653,12 +655,14 @@ public class EndpointManager {
         waitingList.put(messageId, waitingData);
     }
 
-    public void addMatchRequest(String commonAction, String messageId, String className, String replyTo, Thread thread, HashMap<String, String> filters, ResponseThread responseThread) {
+    public void addMatchRequest(String commonAction, String messageId, String className, String replyTo, Thread thread, HashMap<String, String> headers, ResponseThread responseThread) {
         LOG.debug("Add match request for " + className + ". Message ID: " + messageId);
         responders.put(messageId, new ArrayList<String>());
         requests.put(messageId, commonAction);
         threads.put(messageId, thread);
         if (replyTo != null) replies.put(messageId, replyTo);
+        classNames.put(messageId, className);
+        if (headers != null) this.headers.put(messageId, headers);
         identifiers.put(messageId, "");
         responseThreads.put(messageId, responseThread);
         HashMap<String, String> waitingData = new HashMap<>();
@@ -742,6 +746,14 @@ public class EndpointManager {
         return replies.get(messageId);
     }
 
+    public HashMap<String,String> getHeaders(String messageId) {
+        return new HashMap<>(headers.get(messageId));
+    }
+
+    public String getClassNames(String messageId) {
+        return classNames.get(messageId);
+    }
+
     public void timeoutResponse(String messageId) {
         if (threads.containsKey(messageId)) {
             responseThreads.get(messageId).start();
@@ -797,6 +809,8 @@ public class EndpointManager {
         threads.remove(messageId);
         responses.remove(messageId);
         requests.remove(messageId);
+        if (headers.contains(messageId)) headers.remove(messageId);
+        if (classNames.contains(messageId)) classNames.remove(messageId);
         responders.remove(messageId);
         identifiers.remove(messageId);
         responseThreads.remove(messageId);

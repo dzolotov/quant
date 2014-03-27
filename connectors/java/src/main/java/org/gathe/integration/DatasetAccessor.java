@@ -174,6 +174,37 @@ public abstract class DatasetAccessor extends BaseAccessor {
         return row;
     }
 
+
+    /**
+     * Count matching records
+     */
+
+    @Override
+    public String countMatches(String transactionId, String className, HashMap<String,String> filters) {
+        String[] idents = identifiers.keySet().toArray(new String[0]);
+        String identifierName = idents[0];
+        LOG.info("Identifier: " + identifierName);
+        ArrayList<String> uuids = new ArrayList<>();
+        ArrayList<HashMap<String, String>> data = this.getDataset(transactionId, className);
+        //todo: apply filters
+        int count = data.size();
+        int unbinded = 0;
+        for (int i = 0; i < data.size(); i++) {
+            HashMap<String, String> row = transform(data.get(i));
+            String identifierValue = row.get("#"+identifierName);
+            try {
+                PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE name=? AND id=? AND disabled=0");
+                if (!ps.executeQuery()) {
+                    LOG.debug("Found unbinded record");
+                    unbinded++;
+                }
+            } catch (SQLException e) {
+                LOG.error("Error when seeking: "+e.getLocalizedMessage());
+            }
+        }
+
+    }
+
     /**
      * Scanning for matched entries
      *
@@ -183,7 +214,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
      * @return comma separated uuid list
      */
     @Override
-    public String[] match(String transactionId, String className, HashMap<String, String> filters) {
+    public String[] match(String transactionId, String className, HashMap<String, String> filters, boolean explain) {
 
         //search for all entries
         //data[identifier] -> uuid

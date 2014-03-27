@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="org.apache.qpid:qpid-amqp-1-0-client-jms:0.26" type="repository">
+    <properties maven-id="org.apache.qpid:qpid-amqp-1-0-client-jms:0.26" />
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/qpid/qpid-amqp-1-0-client-jms/0.26/qpid-amqp-1-0-client-jms-0.26.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/qpid/qpid-amqp-1-0-common/0.26/qpid-amqp-1-0-common-0.26.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/qpid/qpid-amqp-1-0-client/0.26/qpid-amqp-1-0-client-0.26.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/geronimo/specs/geronimo-jms_1.1_spec/1.0/geronimo-jms_1.1_spec-1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

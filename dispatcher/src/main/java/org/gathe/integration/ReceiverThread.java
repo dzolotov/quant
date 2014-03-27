@@ -499,7 +499,8 @@ public class ReceiverThread extends Thread {
                                     filterData.put(filterName, filterCondition);
                                 }
                             }
-                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new MatchResponseThread(transactionId, messageId));
+                            filterData.put("mode","scan");
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new ScanResponseThread(transactionId, messageId));
                             th.start();
                             break;
 
@@ -572,6 +573,40 @@ public class ReceiverThread extends Thread {
         LOG.info("Leaving receiver thread");
     }
 
+    class ScanResponseThread extends ResponseThread {
+        public ScanResponseThread(String transactionId, String messageId) {
+            super(transactionId, messageId);
+        }
+
+        public void run() {
+            //response animation
+            ArrayList<String> responses = endpointManager.getAllResponses(messageId);
+            boolean rescan = false;
+            for (String response : responses) {
+                LOG.debug("Scan result: " + response);
+                String count = response.substring(0, response.indexOf("/"));
+                String unbinded = response.substring(response.indexOf("/") + 1);
+                if (Integer.getInteger(unbinded) != 0) rescan = true;
+            }
+
+            HashMap<String, String> headers = endpointManager.getHeaders(messageId);
+            String replyTo = endpointManager.getReplyTo(messageId);
+
+            //extract replyTo
+            //extract filters
+            headers.put("mode", "seek");
+            headers.put("explain", (rescan ? "true" : "false"));
+
+            endpointManager.interruptRequestThread(messageId);
+            endpointManager.cleanupResponse(messageId);
+
+            Thread th = new RequestThread(transactionId, messageId, "", replyTo, "match." + endpointManager.getClassNames(messageId), "", headers, new MatchResponseThread(transactionId, messageId));
+            th.start();
+        }
+    }
+
+
+
     class MatchResponseThread extends ResponseThread {
         public MatchResponseThread(String transactionId, String messageId) {
             super(transactionId, messageId);
@@ -579,48 +614,55 @@ public class ReceiverThread extends Thread {
 
 
         public void run() {
-            //response animation
-            endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), endpointManager.getResponseAnimation(messageId));
-            endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
-            LOG.debug("Merge responses accepted");
-            ArrayList<String> responses = endpointManager.getAllResponses(messageId);
+            HashMap<String,String> headers = endpointManager.getHeaders(messageId);
+            boolean explainMode = (""+headers.get("explain")).equalsIgnoreCase("true");
+            if (!explainMode) {
+                //response animation
+                endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), endpointManager.getResponseAnimation(messageId));
+                endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
+                LOG.debug("Merge responses accepted");
+                ArrayList<String> responses = endpointManager.getAllResponses(messageId);
 //            for (String response : responses) {
 //                LOG.debug("Response: " + response);
 //            }
-            //todo: merge responses
-            List<List<String>> allResponses = new ArrayList<>();
-            List<String> result = new ArrayList<>();
-            for (String response : responses) {
-                String[] splittedResponse = response.split(",");
-                List<String> al = Arrays.asList(splittedResponse);
-                allResponses.add(al);
-            }
-            if (allResponses.size() > 0) {
-                List<String> t = allResponses.get(0);
-                for (String ent : t) {
-                    boolean matchAll = true;
-                    for (int i = 1; i < allResponses.size(); i++)
-                        if (!allResponses.get(i).contains(ent)) {
-                            matchAll = false;
-                            break;
-                        }
-                    if (matchAll) result.add(ent);
+                //todo: merge responses
+                List<List<String>> allResponses = new ArrayList<>();
+                List<String> result = new ArrayList<>();
+                for (String response : responses) {
+                    if (response == null) response = "";
+                    String[] splittedResponse = response.split(",");
+                    List<String> al = Arrays.asList(splittedResponse);
+                    allResponses.add(al);
                 }
-            }
-            String resultString = joinStrings(",", result.toArray(new String[0]));
+                if (allResponses.size() > 0) {
+                    List<String> t = allResponses.get(0);
+                    for (String ent : t) {
+                        boolean matchAll = true;
+                        for (int i = 1; i < allResponses.size(); i++)
+                            if (!allResponses.get(i).contains(ent)) {
+                                matchAll = false;
+                                break;
+                            }
+                        if (matchAll) result.add(ent);
+                    }
+                }
+                String resultString = joinStrings(",", result.toArray(new String[0]));
 //            LOG.debug("Merged response: " + resultString);
-            try {
-                TextMessage matchResponse = session.createTextMessage();
-                matchResponse.setStringProperty("transactionId", transactionId);
-                matchResponse.setStringProperty("messageId", messageId);
-                matchResponse.setSubject(endpointManager.getReplyTo(messageId));
-                LOG.debug("Match response message: " + matchResponse + "; " + matchResponse.getText() + "|" + matchResponse.getStringProperty("messageId") + "|" + matchResponse.getSubject());
-                endpointManager.interruptRequestThread(messageId);
-                endpointManager.cleanupResponse(messageId);
-                LOG.info("Sending to ep: " + matchResponse);
-                sendToEndpointsProducer(matchResponse, resultString.toString());
-            } catch (JMSException e) {
-                e.printStackTrace();
+                try {
+                    TextMessage matchResponse = session.createTextMessage();
+                    matchResponse.setStringProperty("transactionId", transactionId);
+                    matchResponse.setStringProperty("messageId", messageId);
+                    matchResponse.setSubject(endpointManager.getReplyTo(messageId));
+                    LOG.debug("Match response message: " + matchResponse + "; " + matchResponse.getText() + "|" + matchResponse.getStringProperty("messageId") + "|" + matchResponse.getSubject());
+                    endpointManager.interruptRequestThread(messageId);
+                    endpointManager.cleanupResponse(messageId);
+                    LOG.info("Sending to ep: " + matchResponse);
+                    sendToEndpointsProducer(matchResponse, resultString.toString());
+                } catch (JMSException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                // ... explain mode, compare data ...
             }
         }
     }

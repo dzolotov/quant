@@ -25,7 +25,7 @@ public abstract class BaseAccessor extends Thread implements Accessor {
     protected Connector connector;
 
     @Override
-    public String[] match(String transactionId, String className, HashMap<String, String> filters) {
+    public String[] match(String transactionId, String className, HashMap<String, String> filters, boolean explain) {
         return new String[0];
     }
 
@@ -87,5 +87,10 @@ public abstract class BaseAccessor extends Thread implements Accessor {
     @Override
     public boolean isModified(String transactionId, String className, String uuid) {
         return false;
+    }
+
+    @Override
+    public String countMatches(String transactionId, String className, HashMap<String,String> filters) {
+        return "0/0";
     }
 }

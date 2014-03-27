@@ -423,7 +423,7 @@ public class BasicConnector extends Thread implements Connector {
             result = this.doMatchAction("matchAll", transactionId, className, filters, async);
         } else {
             Accessor accessor = this.getAccessor(className);
-            String[] results = accessor.match(transactionId, className, filters);
+            String[] results = accessor.match(transactionId, className, filters, false);
             result = this.joinStrings(",", results);
         }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
@@ -800,6 +800,11 @@ public class BasicConnector extends Thread implements Connector {
                             LOG.debug("Match query");
                             className = keyParts[1];
                             Enumeration<String> filters = textMessage.getPropertyNames();
+
+                            String mode = textMessage.getStringProperty("mode");
+                            String explain = ""+textMessage.getStringProperty("explain");
+                            boolean needToExplain = (""+explain).equalsIgnoreCase("true");
+
                             HashMap<String, String> filterData = new HashMap<>();
                             while (filters.hasMoreElements()) {
                                 String filterName = filters.nextElement();
@@ -809,7 +814,7 @@ public class BasicConnector extends Thread implements Connector {
                                     filterData.put(filterAttribute, filterCondition);
                                 }
                             }
-                            new MatchThread(textMessage, className, filterData).start();
+                            new MatchThread(textMessage, className, filterData, mode, needToExplain).start();
                             textMessage.acknowledge();
                             break;
 
@@ -1179,28 +1184,44 @@ public class BasicConnector extends Thread implements Connector {
     class MatchThread extends AsyncThread {
         String className;
         HashMap<String, String> filters;
+        String mode;
+        boolean explain;
 
-        public MatchThread(TextMessage sourceMessage, String className, HashMap<String, String> filters) {
+        public MatchThread(TextMessage sourceMessage, String className, HashMap<String, String> filters, String mode, boolean explain) {
             super(sourceMessage);
             this.className = className;
             this.filters = filters;
+            this.mode = mode;
+            this.explain = explain;
         }
 
         public void run() {
             try {
                 String transactionId = sourceMessage.getStringProperty("transactionId");
                 Accessor accessor = getAccessor(className);
-                String[] result = accessor.match(transactionId, className, filters);
                 TextMessage response;
-                String stringResult = joinStrings(",", result);
-                response = session.createTextMessage();
-                response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
-                response.setStringProperty("transactionId", transactionId);
-                response.setSubject("matchResponse." + id);
-                LOG.debug("Sending response. Subject: " + "matchResponse." + id + " TR: " + transactionId);
+                switch (mode) {
+                    case "scan":
+                        String scanResult = accessor.countMatches(transactionId, className, filters);
+                        response = session.createTextMessage();
+                        response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
+                        response.setStringProperty("transactionId", transactionId);
+                        response.setSubject("matchResponse." + id);
+                        LOG.debug("Sending countmatch response. Subject: " + "matchResponse." + id + " TR: " + transactionId);
+                        sendToUno(response, scanResult);
+                        break;
+                    case "seek":
+                        String[] result = accessor.match(transactionId, className, filters, explain);
+                        String stringResult = joinStrings(",", result);
+                        response = session.createTextMessage();
+                        response.setStringProperty("messageId", sourceMessage.getStringProperty("messageId"));
+                        response.setStringProperty("transactionId", transactionId);
+                        response.setSubject("matchResponse." + id);
+                        LOG.debug("Sending response. Subject: " + "matchResponse." + id + " TR: " + transactionId);
 //                LOG.debug("Response is "+stringResult);
-                sendToUno(response, stringResult);
-
+                        sendToUno(response, stringResult);
+                        break;
+                }
             } catch (JMSException e) {
                 e.printStackTrace();
             }

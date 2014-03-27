@@ -57,7 +57,10 @@ public interface Accessor {
     public boolean backup(String transactionId, String className, String uuid);
 
     //get uuids subset for <className>, matching with <filters>
-    public String[] match(String transactionId, String className, HashMap<String,String> filters);
+    public String[] match(String transactionId, String className, HashMap<String,String> filters, boolean explain);
 
     public boolean isModified(String transactionId, String className, String uuid);
+
+    //count matching records with filters (returns string: matching/unbinded)
+    public String countMatches(String transactionId, String className, HashMap<String,String> filters);
 }
