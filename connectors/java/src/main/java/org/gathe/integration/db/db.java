@@ -6,6 +6,7 @@ package org.gathe.integration.db;
 
 import org.gathe.integration.AccessorField;
 import org.gathe.integration.AccessorSchema;
+import org.gathe.integration.AppendJAXB;
 import org.gathe.integration.ReplaceJAXB;
 
 import javax.xml.bind.annotation.*;
@@ -23,6 +24,9 @@ class DBSchemaJAXB extends AccessorSchema {
     @XmlElement(name = "field")
     private List<DBFieldJAXB> fields;
 
+    @XmlElement(name = "join")
+    private List<DBJoinJAXB> joins = new ArrayList<DBJoinJAXB>();
+
     @XmlAttribute(name = "class")
     private String dataClass;
 
@@ -35,6 +39,17 @@ class DBSchemaJAXB extends AccessorSchema {
 
     public void setTable(String table) {
         this.table = table;
+    }
+
+    @XmlAttribute(name = "active")
+    private String active = null;
+
+    public String getActive() {
+        return active;
+    }
+
+    public void setActive(String active) {
+        this.active = active;
     }
 
     @XmlAttribute(name = "table")
@@ -59,6 +74,10 @@ class DBSchemaJAXB extends AccessorSchema {
     public void addField(DBFieldJAXB field) {
         fields.add(field);
     }
+
+    public void addJoin(DBJoinJAXB join) { joins.add(join); }
+
+    public List<DBJoinJAXB> getJoin() { return joins; }
 
     @Override
     public List<AccessorField> getSchemaFields() {
@@ -85,10 +104,55 @@ class DBFieldJAXB extends AccessorField {
 
     String ref = null;
 
+    String value = null;
+
     String defaultValue = null;
+
+    String nullBehavior = "stay";
+
+    String emptyBehavior = "stay";
+
+    @XmlAttribute(name="value")
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
+    }
 
     @XmlElement(name = "replace")
     private List<ReplaceJAXB> replaces;
+
+    @XmlElement(name = "append")
+    private List<AppendJAXB> appends;
+
+    @XmlAttribute
+    public String getDefaultValue() {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(String defaultValue) {
+        this.defaultValue = defaultValue;
+    }
+
+    @XmlAttribute
+    public String getNullBehavior() {
+        return nullBehavior;
+    }
+
+    public void setNullBehavior(String nullBehavior) {
+        this.nullBehavior = nullBehavior;
+    }
+
+    @XmlAttribute
+    public String getEmptyBehavior() {
+        return emptyBehavior;
+    }
+
+    public void setEmptyBehavior(String emptyBehavior) {
+        this.emptyBehavior = emptyBehavior;
+    }
 
     @XmlAttribute
     public String getRef() {
@@ -174,6 +238,10 @@ class DBFieldJAXB extends AccessorField {
     public void addReplace(ReplaceJAXB replace) {
         replaces.add(replace);
     }
+
+    public void addAppend(AppendJAXB append) { appends.add(append); }
+
+    public List<AppendJAXB> getAppends() { return appends; }
 
     @Override
     public boolean isIdentifier() {

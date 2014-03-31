@@ -605,8 +605,6 @@ public class ReceiverThread extends Thread {
         }
     }
 
-
-
     class MatchResponseThread extends ResponseThread {
         public MatchResponseThread(String transactionId, String messageId) {
             super(transactionId, messageId);

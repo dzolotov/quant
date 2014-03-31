@@ -78,7 +78,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
         return schemaEntries;
     }
 
-
     protected abstract HashMap<String, String> getRow(String identifierName, String identifierValue, boolean applyTransform);
 
     protected abstract ArrayList<HashMap<String, String>> getDataset(String transactionId, String className);
@@ -133,6 +132,13 @@ public abstract class DatasetAccessor extends BaseAccessor {
         return false;
     }
 
+    private String getKeyByPath(String path) {
+        for (AccessorField field : schema.getSchemaFields()) {
+            if (this.getPath(field.getKey()).equalsIgnoreCase(path)) return field.getKey();
+        }
+        return null;
+    }
+
     /**
      * Apply transformation rules
      *
@@ -141,7 +147,8 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
     public HashMap<String, String> transform(HashMap<String, String> row) {
 
-        for (String key : row.keySet()) {
+//        LOG.debug(row);
+        for (String path : row.keySet()) {
 //            LOG.debug("Row data: " + key + " " + row.get(key));
             //if (key.startsWith("#")) continue;      //don't skip identifier
             List<AccessorField> fields = schema.getSchemaFields();
@@ -151,24 +158,47 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
                 boolean matchedField = false;
                 if (field.isIdentifier()) {
-                    matchedField = (field.getId().equalsIgnoreCase(key.substring(1)));
+//                    LOG.debug("Field is "+field);
+//                    LOG.debug("Comparing "+field.getId()+" with "+path);
+                    matchedField = (field.getId().equalsIgnoreCase(path.substring(1)));
                 } else {
-                    matchedField = (field.getPath().equalsIgnoreCase(key));
+                    matchedField = (field.getPath().equalsIgnoreCase(path));
                 }
 
                 if (matchedField) {
                     List<ReplaceJAXB> replaces = field.getReplaces();
-                    if (replaces == null) continue;
-                    for (ReplaceJAXB replaceRule : replaces) {
-//                        LOG.debug("Comparing "+replaceRule.getFrom()+" with "+row.get(key));
-                        if (replaceRule.getFrom().equalsIgnoreCase(row.get(key))) {
+                    if (replaces != null) {
+                        for (ReplaceJAXB replaceRule : replaces) {
+                        //LOG.debug("RP: Comparing "+replaceRule.getFrom()+" with "+row.get(path));
+                            if (replaceRule.getFrom().trim().equalsIgnoreCase(row.get(path).trim())) {
 //                            LOG.debug("Matched - replace with "+replaceRule.getTo());
-                            row.put(key, replaceRule.getTo());
-                            break;
+                                row.put(path, replaceRule.getTo().trim());
+                                break;
+                            }
+                        }
+                    }
+                    List<AppendJAXB> appends = field.getAppends();
+                    if (appends != null) {
+                        for (AppendJAXB appendRule : appends) {
+//                            if (appendRule.getName().equalsIgnoreCase(row.get(key))) {
+                                //check for attributes
+
+                                if (appendRule.getPath()!=null) {
+                                    row.put(path, row.get(path)+row.get(appendRule.getPath()));
+
+                                } else if (appendRule.getValue()!=null) {
+                                    row.put(path, row.get(path)+appendRule.getValue());
+                                }
+
+//                            }
                         }
                     }
                 }
             }
+        }
+
+        for (String path : row.keySet()) {
+            if (path.startsWith("@")) row.remove(row.get(path));
         }
 
         return row;
@@ -194,7 +224,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
             String identifierValue = row.get("#"+identifierName);
             try {
                 PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE name=? AND id=? AND disabled=0");
-                if (!ps.executeQuery()) {
+                if (!ps.executeQuery().next()) {
                     LOG.debug("Found unbinded record");
                     unbinded++;
                 }
@@ -202,7 +232,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 LOG.error("Error when seeking: "+e.getLocalizedMessage());
             }
         }
-
+        return count+"/"+unbinded;
     }
 
     /**
@@ -242,18 +272,39 @@ public abstract class DatasetAccessor extends BaseAccessor {
     /**
      * Compare records
      *
-     * @param row    data row
-     * @param rowData update helper object
+     * @param datasetRow    data row
+     * @param xmlData update helper object
      * @return true if identical
      */
 
-    public boolean equals(HashMap<String, String> row, HashMap<String, String> rowData) {
-        for (String rowKey : row.keySet()) {
+    public boolean equals(HashMap<String, String> datasetRow, HashMap<String, String> xmlData) {
+        for (String rowKey : datasetRow.keySet()) {
             if (rowKey.startsWith("#")) continue;          //skip identifiers
-            //todo: check scope
-            if (rowData.containsKey(rowKey)) {
-                if (!rowData.get(rowKey).trim().equalsIgnoreCase(row.get(rowKey).trim())) return false;
+            String value = "";
+            if (!xmlData.containsKey(rowKey)) continue;         //skip
+
+            //todo: null conventions
+
+            if (datasetRow.get(rowKey)==null) {
+                String defaultValue = null;
+                boolean found = false;
+                for (AccessorField f : schema.getSchemaFields()) {
+                    LOG.debug("Comparing "+this.getPath(f.getKey())+" with "+rowKey);
+                    if (this.getPath(f.getKey()).equalsIgnoreCase(rowKey)) {
+                        if (f.getDefault()!=null) defaultValue = f.getDefault();
+                        found = true;
+                    }
+                }
+                if (!found || defaultValue==null) continue;     //skip empty and not defaulted value
+                value = defaultValue;
+            } else {
+                value = datasetRow.get(rowKey);
             }
+//            LOG.debug("Comparing "+value+" with "+rowData)
+            //todo: check scope
+//            if (rowData.containsKey(rowKey)) {
+                if (!xmlData.get(rowKey).trim().equalsIgnoreCase(value.trim())) return false;
+//            }
         }
         return true;
     }
@@ -282,10 +333,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
     public abstract HashMap<String, String> insertData(String className, String identifierName, String identifierValue, HashMap<String, String> row);
 
-    private String reverseReplace(AccessorField field, String value) {
+    protected String reverseReplace(AccessorField field, String value) {
         if (field.getReplaces() == null || field.getReplaces().size() == 0) return value;
+        LOG.debug("Reverse replace");
         List<ReplaceJAXB> replaces = field.getReplaces();
         for (ReplaceJAXB replace : replaces) {
+            LOG.debug("Comparing "+value+" with "+replace.getTo());
             if (replace.getTo().equalsIgnoreCase(value)) {
                 return replace.getFrom();
             }
@@ -294,12 +347,30 @@ public abstract class DatasetAccessor extends BaseAccessor {
     }
 
 
-    private void fillDefaultValues(HashMap<String, String> newData) {
+    private void fillDefaultValues(HashMap<String, String> newData, boolean update) {
+        LOG.info("Filling default values");
         //set default value (when update)
         for (AccessorField field : schema.getSchemaFields()) {
             String path = this.getPath(field.getKey());
-            if (!newData.containsKey(path) && field.getDefault() != null) {
-                newData.put(path, field.getDefault());
+            LOG.debug("For path: "+path+" newData: "+newData.containsKey(path)+" field:"+field.getDefault());
+
+            String oldValue;
+            String newValue;
+            if (update && !newData.containsKey(path)) continue;
+            if (!newData.containsKey(path) || newData.get(path).equals("\\N")) newValue = null; else newValue = newData.get(path);
+            oldValue = newValue;
+            String defaultValue = field.getDefault();
+            if (newValue==null) {
+                if (field.getNullBehavior().equalsIgnoreCase("DEFAULT")) newValue = defaultValue;
+            } else if (newValue.isEmpty()) {
+                LOG.debug("Value for "+path+" is empty");
+                if (field.getEmptyBehavior().equalsIgnoreCase("DEFAULT")) newValue = defaultValue; else
+                    if (field.getEmptyBehavior().equalsIgnoreCase("NULL")) newValue = null;
+                LOG.debug("New value is "+newValue);
+            }
+
+            if (!(""+newValue).equals(""+oldValue)) {
+                newData.put(path,newValue);
             }
         }
     }
@@ -350,12 +421,14 @@ public abstract class DatasetAccessor extends BaseAccessor {
             if (rs.next()) {
                 String id = rs.getString("id");
                 String identifier = rs.getString("name");
+
                 LOG.debug("Binding found for " + identifier + ":" + id);
 
                 if (this.checkByIdentifier(helper.getTransactionId(), className, identifier, id)) {
+                    fillDefaultValues(newData, true);
                     return updateData(className, identifier, id, newData);           //update existing!
                 } else {
-                    fillDefaultValues(newData);
+                    fillDefaultValues(newData, false);
                     return (insertData(className, identifier, id, newData) != null);      //recreate!
                 }
             }
@@ -388,6 +461,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     String id0 = idents[0];
                     String val0 = row.get("#" + id0);
                     LOG.debug("ID: " + id0 + " val:" + val0);
+                    fillDefaultValues(newData, true);
                     //if (this.checkByIdentifier(helper.getTransactionId(), className, identifier, id)) {
                     return updateData(className, id0, val0, newData);           //update existing!
                     //} else {
@@ -405,7 +479,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 classIdentifiers += ks;
             }
 
-            fillDefaultValues(newData);
+            fillDefaultValues(newData, false);
             HashMap<String, String> keys = insertData(className, classIdentifiers, null, newData);
             if (keys == null) return false;
             //register bindings
@@ -484,7 +558,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
                     if (!connector.isSelfRequest(transactionId, className)) {
 
+                        LOG.debug("Getting row: "+identifierName+"="+identifierValue);
                         row = this.getRow(identifierName, identifierValue, true);
+                        LOG.debug("Row is "+row);
 //                    for (int i = 0; i < data.size(); i++) {
 //                        HashMap<String, String> row = data.get(i);
                         //search for identifier
@@ -496,18 +572,37 @@ public abstract class DatasetAccessor extends BaseAccessor {
                                 String identifier = field.getId();
                                 String uuidGlobal = null;
                                 try {
+                                    LOG.debug("Connector is "+connector);
+                                    LOG.debug("Run signature: "+transactionId+","+className+","+identifier+","+row.get("#"+identifier));
                                     uuidGlobal = connector.unify(transactionId, className, identifier, row.get("#" + identifier), false, false);
                                 } catch (JMSException e) {
                                 }
                                 LOG.info("Found in global scope: " + uuidGlobal);
                                 if (uuidGlobal != null) {
                                     //object found in outer world!
-                                    PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
-                                    LOG.debug("Adding to " + uuidGlobal + " " + identifierName + ":" + identifierValue);
-                                    uuidUpdate.setString(1, uuidGlobal);
-                                    uuidUpdate.setString(2, identifierValue);
-                                    uuidUpdate.setString(3, identifierName);
-                                    uuidUpdate.executeUpdate();
+
+                                    for (AccessorField identifierField : schema.getSchemaFields()) {
+
+                                        if (identifierField.isIdentifier()) {
+                                            String identifierNameOther = identifierField.getId();
+                                            if (!"global".equalsIgnoreCase(identifierField.getScope())) {
+                                                identifierNameOther = this.systemId + ':' + identifierNameOther;
+                                            }
+
+                                            String identifierFieldName = this.getPath(identifierField.getKey());
+                                            String identifierFieldValue = row.get(identifierFieldName);
+                                            PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
+                                            LOG.debug("Adding to " + uuidGlobal + " " + identifierNameOther + ":" + identifierFieldValue);
+                                            uuidUpdate.setString(1, uuidGlobal);
+                                            uuidUpdate.setString(2, identifierFieldValue);
+                                            uuidUpdate.setString(3, identifierNameOther);
+                                            uuidUpdate.executeUpdate();
+                                        }
+
+
+                                    }
+
+
                                     return uuidGlobal;
                                 }
                             }
@@ -604,8 +699,11 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
     @Override
     public String getIdentifierByUuid(String transactionId, String className, String identifierName, String uuidValue) {
+        LOG.debug("Identifying: "+transactionId+" class: "+className+" name: "+identifierName+" uuidValue: "+uuidValue);
         try {
-            PreparedStatement st = this.bindingDB.prepareStatement("SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0");
+            String qr ="SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0";
+            LOG.debug(qr);
+            PreparedStatement st = this.bindingDB.prepareStatement(qr);
             st.setString(1, uuidValue);
             st.setString(2, identifierName);
             ResultSet rs = st.executeQuery();
