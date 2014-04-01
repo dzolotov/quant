@@ -9,16 +9,17 @@ import javax.sql.DataSource;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.*;
-import java.sql.Date;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * Created by dmitrii on 25.03.14.
@@ -116,7 +117,7 @@ public class DBAccessor extends DatasetAccessor {
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
                 q+=" JOIN "+dbjoin.getWith()+" ON `"+tableName+"`.`"+dbjoin.getFrom()+"`=`"+dbjoin.getWith()+"`.`"+dbjoin.getTo()+"`";
             }
-            q += " WHERE " + fieldName + "=?";
+            q += " WHERE `" + tableName + "`.`" + fieldName + "`=?";
 
             LOG.debug(q);
             PreparedStatement ps = connection.prepareStatement(q);

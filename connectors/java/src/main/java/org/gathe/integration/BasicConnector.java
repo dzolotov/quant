@@ -309,8 +309,13 @@ public class BasicConnector extends Thread implements Connector {
         return result;
     }
 
+
     @Override
     public String unify(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException {
+        return this.unify(transactionId, className, identifier, identifierValue, async, isLocalRequest, false);
+    }
+
+    public String unify(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest, boolean forcedCreation) throws JMSException {
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
         String result;
@@ -318,7 +323,7 @@ public class BasicConnector extends Thread implements Connector {
             result = this.doAction("unify", transactionId, className, identifierValue, identifier, async);
         } else {
             Accessor accessor = this.getAccessor(className);
-            result = accessor.getUuidByIdentifier(null, className, identifier, identifierValue);
+            result = accessor.getUuidByIdentifier(null, className, identifier, identifierValue, forcedCreation);
         }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
@@ -462,12 +467,17 @@ public class BasicConnector extends Thread implements Connector {
 
     @Override
     public String unify(String className, String identifier, String identifierValue, boolean isLocalRequest) throws JMSException {
-        return this.unify(null, className, identifier, identifierValue, false, isLocalRequest);
+        return this.unify(null, className, identifier, identifierValue, false, isLocalRequest, false);
+    }
+
+    @Override
+    public String unify(String className, String identifier, String identifierValue, boolean isLocalRequest, boolean forcedCreation) throws JMSException {
+        return this.unify(null, className, identifier, identifierValue, false, isLocalRequest, forcedCreation);
     }
 
     @Override
     public String unify(String className, String identifier, String identifierValue) throws JMSException {
-        return this.unify(null, className, identifier, identifierValue, false, false);
+        return this.unify(null, className, identifier, identifierValue, false, false, false);
     }
 
     @Override
@@ -891,9 +901,9 @@ public class BasicConnector extends Thread implements Connector {
     }
 
     protected Accessor getAccessor(String className) {
-        LOG.info("Getting accessor from " + schema.keySet().size());
+//        LOG.info("Getting accessor from " + schema.keySet().size());
         for (DataClass dc : schema.keySet()) {
-            LOG.info("Iterating: " + dc + " classname: " + dc.getClassName() + " with " + className);
+//            LOG.info("Iterating: " + dc + " classname: " + dc.getClassName() + " with " + className);
             if (dc.getClassName().equalsIgnoreCase(className)) return schema.get(dc);
         }
         return null;
@@ -1347,7 +1357,7 @@ public class BasicConnector extends Thread implements Connector {
                 String transactionId = sourceMessage.getStringProperty("transactionId");
                 LOG.debug("Unifying " + className + "." + identifierName + " for " + identifierValue);
                 Accessor accessor = getAccessor(className);
-                String result = accessor.getUuidByIdentifier(transactionId, className, identifierName, identifierValue);
+                String result = accessor.getUuidByIdentifier(transactionId, className, identifierName, identifierValue, true);
                 LOG.debug("Result is " + result);
                 if (result == null) result = "";
                 TextMessage response;

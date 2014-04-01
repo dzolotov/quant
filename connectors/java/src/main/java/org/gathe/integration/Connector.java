@@ -29,6 +29,8 @@ public interface Connector extends Runnable {
 
     String unify(String className, String identifier, String identifierValue, boolean isLocalRequest) throws JMSException;
 
+    String unify(String className, String identifier, String identifierValue, boolean isLocalRequest, boolean forcedCreation) throws JMSException;
+
     String identify(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException;
 
     String identify(String transactionId, String className, String identifier, String identifierValue, boolean async) throws JMSException;

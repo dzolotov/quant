@@ -1,4 +1,8 @@
-package org.gathe.integration.csv;
+package org.gathe.integration.xml;
+
+/**
+ * Created by mit on 01.04.14.
+ */
 
 import org.gathe.integration.AccessorField;
 import org.gathe.integration.AccessorSchema;
@@ -13,64 +17,49 @@ import java.util.List;
  * Created by dmitrii on 24.03.14.
  */
 
-@XmlRootElement(name = "csv")
+@XmlRootElement(name = "xml")
 @XmlAccessorType(XmlAccessType.FIELD)
-class CSVSchemaJAXB extends AccessorSchema {
+class XMLSchemaJAXB extends AccessorSchema {
 
     @XmlElement(name = "field")
-    private List<CSVFieldJAXB> fields;
+    private List<XMLFieldJAXB> fields;
+
+    @XmlAttribute(name = "dir")
+    private String dir = null;
+
+    @XmlAttribute(name = "filename")
+    private String filename = null;
 
     @XmlAttribute(name = "class")
     private String dataClass;
 
-    @XmlAttribute(name = "source")
-    private String source = null;
-
-    @XmlAttribute(name = "encoding")
-    private String encoding = "utf-8";
-
-    @XmlAttribute(name = "header")
-    private String header = "false";
-
-    public String getHeader() {
-        return header;
+    public String getDir() {
+        return dir;
     }
 
-    public void setHeader(String header) {
-        this.header = header;
+    public void setDir(String dir) {
+        this.dir = dir;
     }
 
     public String getDataClass() {
-        return dataClass;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public String getEncoding() {
-        return encoding;
-    }
-
-    public void setEncoding(String encoding) {
-        this.encoding = encoding;
+        return this.dataClass;
     }
 
     public void setDataClass(String dataClass) {
         this.dataClass = dataClass;
     }
 
-    public void addField(CSVFieldJAXB field) {
-        fields.add(field);
+    public String getFilename() {
+        return filename;
     }
 
-//    public List<CSVFieldJAXB> getFields() {
-//        return this.fields;
-//    }
+    public void setFilename(String filename) {
+        this.filename = filename;
+    }
+
+    public void addField(XMLFieldJAXB field) {
+        fields.add(field);
+    }
 
     @Override
     public List<AccessorField> getSchemaFields() {
@@ -78,15 +67,13 @@ class CSVSchemaJAXB extends AccessorSchema {
         List<AccessorField> af = new ArrayList<AccessorField>();
         af.addAll(fields);
         return af;
-//
-//        return new ArrayList<AccessorField>(fields.toArray(new AccessorField[0]));
     }
 }
 
 @XmlRootElement(name = "field")
-class CSVFieldJAXB extends AccessorField {
+class XMLFieldJAXB extends AccessorField {
 
-    private String order = null;
+    private String xpath = null;
 
     private String type = "text";
 
@@ -102,9 +89,9 @@ class CSVFieldJAXB extends AccessorField {
 
     String defaultValue = null;
 
-    String nullBehavior;
+    String nullBehavior = "stay";
 
-    String emptyBehavior;
+    String emptyBehavior = "stay";
 
     @XmlAttribute
     public String getDefaultValue() {
@@ -120,6 +107,7 @@ class CSVFieldJAXB extends AccessorField {
         return nullBehavior;
     }
 
+    @XmlAttribute
     public String getEmptyBehavior() {
         return emptyBehavior;
     }
@@ -166,13 +154,13 @@ class CSVFieldJAXB extends AccessorField {
         this.scope = scope;
     }
 
-    @XmlAttribute
-    public String getOrder() {
-        return this.order;
+    @XmlAttribute(name = "xpath")
+    public String getXPath() {
+        return this.xpath;
     }
 
-    public void setOrder(String order) {
-        this.order = order;
+    public void setXPath(String xpath) {
+        this.xpath = xpath;
     }
 
     @XmlAttribute
@@ -213,7 +201,7 @@ class CSVFieldJAXB extends AccessorField {
     }
 
     public String toString() {
-        return this.getOrder() + (this.isIdentifier() ? " [I:" + this.getId() + "]" : "") + ": " + this.getType() + " -> " + this.getPath() + (this.getDescription().isEmpty() ? "" : " (" + this.getDescription() + ")");
+        return this.getXPath() + (this.isIdentifier() ? " [I:" + this.getId() + "]" : "") + ": " + this.getType() + " -> " + this.getPath() + (this.getDescription().isEmpty() ? "" : " (" + this.getDescription() + ")");
     }
 
     public List<ReplaceJAXB> getReplaces() {
@@ -240,6 +228,6 @@ class CSVFieldJAXB extends AccessorField {
 
     @Override
     public String getKey() {
-        return this.getOrder();
+        return this.getXPath();
     }
 }

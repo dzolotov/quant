@@ -36,83 +36,81 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class UpdateHelper {
-  private final String uuid;
-  private final String transactionId;
-  private Logger LOG = Logger.getLogger(this.getClass());
+    private final String uuid;
+    private final String transactionId;
+    private Logger LOG = Logger.getLogger(this.getClass());
 
-  private ArrayList<DataElement> schema = new ArrayList<>();
+    private ArrayList<DataElement> schema = new ArrayList<>();
 
-  private HashMap<String,String> result = new HashMap<>();
+    private HashMap<String, String> result = new HashMap<>();
 
-  public UpdateHelper(String uuid, String transactionId) {
-	this.uuid = uuid;
-	this.transactionId = transactionId;
-  }
+    public UpdateHelper(String uuid, String transactionId) {
+        this.uuid = uuid;
+        this.transactionId = transactionId;
+    }
 
-    public HashMap<String,String> getPatch() {
+    public HashMap<String, String> getPatch() {
         return result;
     }
 
-  public String getUuid() {
-	return this.uuid;
-  }
+    public String getUuid() {
+        return this.uuid;
+    }
 
-  public String getTransactionId() {
-	return this.transactionId;
-  }
+    public String getTransactionId() {
+        return this.transactionId;
+    }
 
-  public void resetSchema() {
-    schema = new ArrayList<>();
-  }
+    public void resetSchema() {
+        schema = new ArrayList<>();
+    }
 
-  public void addElementToSchema(DataElement del) {
-    schema.add(del);
-  }
+    public void addElementToSchema(DataElement del) {
+        schema.add(del);
+    }
 
-  public String get(String path) {
-      //todo: path normalization
-      boolean found = false;
-      for (DataElement element: schema) {
-          if (element.getXPath().equalsIgnoreCase(path)) {
-              found = true;
-              break;
-          }
-      }
-      return (found ? result.get(path) : null);
-  }
-
-//todo: convert from XML
+    public String get(String path) {
+        //todo: path normalization
+        boolean found = false;
+        for (DataElement element : schema) {
+            if (element.getXPath().equalsIgnoreCase(path)) {
+                found = true;
+                break;
+            }
+        }
+        return (found ? result.get(path) : null);
+    }
 
     private int countSubnodes(Node node) {
         int count = 0;
         NodeList nl = node.getChildNodes();
-        for (int i=0;i<nl.getLength();i++) {
+        for (int i = 0; i < nl.getLength(); i++) {
             Node subnode = nl.item(i);
-            if (subnode.getNodeType()==Node.ELEMENT_NODE) count++;
+            if (subnode.getNodeType() == Node.ELEMENT_NODE) count++;
         }
         return count;
     }
 
     private void parseLevel(Node level, String basePath) {
-        LOG.debug("Node: "+level.getNodeName());
+        LOG.debug("Node: " + level.getNodeName());
         NodeList nodeList = level.getChildNodes();
-        for (int i=0;i<nodeList.getLength();i++) {
+        for (int i = 0; i < nodeList.getLength(); i++) {
             Node node = nodeList.item(i);
-            if (node.getNodeType()!=Node.ELEMENT_NODE) continue;
-            LOG.debug("Check subnode: "+node.getNodeName());
-            if (countSubnodes(node)>0) {
+            if (node.getNodeType() != Node.ELEMENT_NODE) continue;
+            LOG.debug("Check subnode: " + node.getNodeName());
+            if (countSubnodes(node) > 0) {
                 LOG.debug("Parsing subnode");
                 parseLevel(node, basePath + "/" + node.getNodeName());
             } else {
-                LOG.debug("Put "+node.getTextContent()+" to "+basePath+"/"+node.getNodeName());
-                result.put(basePath+"/"+node.getNodeName(),node.getTextContent());
+                LOG.debug("Put " + node.getTextContent() + " to " + basePath + "/" + node.getNodeName());
+                result.put(basePath + "/" + node.getNodeName(), node.getTextContent());
             }
         }
     }
 
     public void transformFromXML(String data) {
         try {
-            LOG.debug("Parsing XML: "+data);
+            LOG.debug("Parsing XML: " + data);
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             DocumentBuilder db = dbf.newDocumentBuilder();
             Document doc = db.parse(new InputSource(new StringReader(data)));

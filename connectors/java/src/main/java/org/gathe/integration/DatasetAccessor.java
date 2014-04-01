@@ -169,7 +169,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     List<ReplaceJAXB> replaces = field.getReplaces();
                     if (replaces != null) {
                         for (ReplaceJAXB replaceRule : replaces) {
-                        //LOG.debug("RP: Comparing "+replaceRule.getFrom()+" with "+row.get(path));
+                            //LOG.debug("RP: Comparing "+replaceRule.getFrom()+" with "+row.get(path));
                             if (replaceRule.getFrom().trim().equalsIgnoreCase(row.get(path).trim())) {
 //                            LOG.debug("Matched - replace with "+replaceRule.getTo());
                                 row.put(path, replaceRule.getTo().trim());
@@ -180,15 +180,17 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     List<AppendJAXB> appends = field.getAppends();
                     if (appends != null) {
                         for (AppendJAXB appendRule : appends) {
+                            LOG.debug("Applying append rule: " + appendRule);
 //                            if (appendRule.getName().equalsIgnoreCase(row.get(key))) {
-                                //check for attributes
+                            //check for attributes
 
-                                if (appendRule.getPath()!=null) {
-                                    row.put(path, row.get(path)+row.get(appendRule.getPath()));
+                            if (appendRule.getPath() != null) {
+                                LOG.debug("APPENDING RULE for " + appendRule.getPath() + " old value: " + row.get(path) + " add value: " + row.get(appendRule.getPath()));
+                                row.put(path, row.get(path) + row.get(appendRule.getPath()));
 
-                                } else if (appendRule.getValue()!=null) {
-                                    row.put(path, row.get(path)+appendRule.getValue());
-                                }
+                            } else if (appendRule.getValue() != null) {
+                                row.put(path, row.get(path) + appendRule.getValue());
+                            }
 
 //                            }
                         }
@@ -210,7 +212,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
 
     @Override
-    public String countMatches(String transactionId, String className, HashMap<String,String> filters) {
+    public String countMatches(String transactionId, String className, HashMap<String, String> filters) {
         String[] idents = identifiers.keySet().toArray(new String[0]);
         String identifierName = idents[0];
         LOG.info("Identifier: " + identifierName);
@@ -221,7 +223,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         int unbinded = 0;
         for (int i = 0; i < data.size(); i++) {
             HashMap<String, String> row = transform(data.get(i));
-            String identifierValue = row.get("#"+identifierName);
+            String identifierValue = row.get("#" + identifierName);
             try {
                 PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE name=? AND id=? AND disabled=0");
                 if (!ps.executeQuery().next()) {
@@ -229,10 +231,10 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     unbinded++;
                 }
             } catch (SQLException e) {
-                LOG.error("Error when seeking: "+e.getLocalizedMessage());
+                LOG.error("Error when seeking: " + e.getLocalizedMessage());
             }
         }
-        return count+"/"+unbinded;
+        return count + "/" + unbinded;
     }
 
     /**
@@ -255,7 +257,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         ArrayList<HashMap<String, String>> data = this.getDataset(transactionId, className);
         for (int i = 0; i < data.size(); i++) {
             HashMap<String, String> row = transform(data.get(i));
-            String uuid = getUuidByIdentifier(transactionId, className, identifierName, row.get("#" + identifierName));
+            String uuid = getUuidByIdentifier(transactionId, className, identifierName, row.get("#" + identifierName), true);
             uuids.add(uuid);
         }
         return uuids.toArray(new String[0]);
@@ -272,8 +274,8 @@ public abstract class DatasetAccessor extends BaseAccessor {
     /**
      * Compare records
      *
-     * @param datasetRow    data row
-     * @param xmlData update helper object
+     * @param datasetRow data row
+     * @param xmlData    update helper object
      * @return true if identical
      */
 
@@ -285,17 +287,17 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
             //todo: null conventions
 
-            if (datasetRow.get(rowKey)==null) {
+            if (datasetRow.get(rowKey) == null) {
                 String defaultValue = null;
                 boolean found = false;
                 for (AccessorField f : schema.getSchemaFields()) {
-                    LOG.debug("Comparing "+this.getPath(f.getKey())+" with "+rowKey);
+                    LOG.debug("Comparing " + this.getPath(f.getKey()) + " with " + rowKey);
                     if (this.getPath(f.getKey()).equalsIgnoreCase(rowKey)) {
-                        if (f.getDefault()!=null) defaultValue = f.getDefault();
+                        if (f.getDefault() != null) defaultValue = f.getDefault();
                         found = true;
                     }
                 }
-                if (!found || defaultValue==null) continue;     //skip empty and not defaulted value
+                if (!found || defaultValue == null) continue;     //skip empty and not defaulted value
                 value = defaultValue;
             } else {
                 value = datasetRow.get(rowKey);
@@ -303,7 +305,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
 //            LOG.debug("Comparing "+value+" with "+rowData)
             //todo: check scope
 //            if (rowData.containsKey(rowKey)) {
-                if (!xmlData.get(rowKey).trim().equalsIgnoreCase(value.trim())) return false;
+            if (!xmlData.get(rowKey).trim().equalsIgnoreCase(value.trim())) return false;
 //            }
         }
         return true;
@@ -338,7 +340,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         LOG.debug("Reverse replace");
         List<ReplaceJAXB> replaces = field.getReplaces();
         for (ReplaceJAXB replace : replaces) {
-            LOG.debug("Comparing "+value+" with "+replace.getTo());
+            LOG.debug("Comparing " + value + " with " + replace.getTo());
             if (replace.getTo().equalsIgnoreCase(value)) {
                 return replace.getFrom();
             }
@@ -352,25 +354,26 @@ public abstract class DatasetAccessor extends BaseAccessor {
         //set default value (when update)
         for (AccessorField field : schema.getSchemaFields()) {
             String path = this.getPath(field.getKey());
-            LOG.debug("For path: "+path+" newData: "+newData.containsKey(path)+" field:"+field.getDefault());
+            LOG.debug("For path: " + path + " newData: " + newData.containsKey(path) + " field:" + field.getDefault());
 
             String oldValue;
             String newValue;
             if (update && !newData.containsKey(path)) continue;
-            if (!newData.containsKey(path) || newData.get(path).equals("\\N")) newValue = null; else newValue = newData.get(path);
+            if (!newData.containsKey(path) || newData.get(path).equals("\\N")) newValue = null;
+            else newValue = newData.get(path);
             oldValue = newValue;
             String defaultValue = field.getDefault();
-            if (newValue==null) {
+            if (newValue == null) {
                 if (field.getNullBehavior().equalsIgnoreCase("DEFAULT")) newValue = defaultValue;
             } else if (newValue.isEmpty()) {
-                LOG.debug("Value for "+path+" is empty");
-                if (field.getEmptyBehavior().equalsIgnoreCase("DEFAULT")) newValue = defaultValue; else
-                    if (field.getEmptyBehavior().equalsIgnoreCase("NULL")) newValue = null;
-                LOG.debug("New value is "+newValue);
+                LOG.debug("Value for " + path + " is empty");
+                if (field.getEmptyBehavior().equalsIgnoreCase("DEFAULT")) newValue = defaultValue;
+                else if (field.getEmptyBehavior().equalsIgnoreCase("NULL")) newValue = null;
+                LOG.debug("New value is " + newValue);
             }
 
-            if (!(""+newValue).equals(""+oldValue)) {
-                newData.put(path,newValue);
+            if (!("" + newValue).equals("" + oldValue)) {
+                newData.put(path, newValue);
             }
         }
     }
@@ -392,6 +395,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         for (String key : newData.keySet()) {
             LOG.debug("Old value for " + key + " is " + newData.get(key));
             for (AccessorField field : schema.getSchemaFields()) {
+//                LOG.debug("FK: "+field+" Key: "+field.getKey());
                 String path = this.getPath(field.getKey());
                 if (!path.equalsIgnoreCase(key)) continue;
                 if (field.getRef() != null) {
@@ -509,7 +513,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
      * @return Global UUID
      */
     @Override
-    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue) {
+    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue, boolean forcedCreation) {
         try {
             PreparedStatement st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0");
             LOG.info("Searching for " + identifierName + " = " + identifierValue);
@@ -518,9 +522,10 @@ public abstract class DatasetAccessor extends BaseAccessor {
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
                 //record exists
+                LOG.debug("Record exists");
                 return rs.getString("uuid");
-            } else {
-
+            } else if (!forcedCreation) {
+                LOG.debug("Search by indirect ids");
                 //поиск совпадений с другими идентификаторами строки
                 ArrayList<HashMap<String, String>> data = this.getDataset(transactionId, className);
                 for (int i = 0; i < data.size(); i++) {
@@ -558,9 +563,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
                     if (!connector.isSelfRequest(transactionId, className)) {
 
-                        LOG.debug("Getting row: "+identifierName+"="+identifierValue);
+                        LOG.debug("Getting row: " + identifierName + "=" + identifierValue);
                         row = this.getRow(identifierName, identifierValue, true);
-                        LOG.debug("Row is "+row);
+                        LOG.debug("Row is " + row);
 //                    for (int i = 0; i < data.size(); i++) {
 //                        HashMap<String, String> row = data.get(i);
                         //search for identifier
@@ -572,8 +577,8 @@ public abstract class DatasetAccessor extends BaseAccessor {
                                 String identifier = field.getId();
                                 String uuidGlobal = null;
                                 try {
-                                    LOG.debug("Connector is "+connector);
-                                    LOG.debug("Run signature: "+transactionId+","+className+","+identifier+","+row.get("#"+identifier));
+                                    LOG.debug("Connector is " + connector);
+                                    LOG.debug("Run signature: " + transactionId + "," + className + "," + identifier + "," + row.get("#" + identifier));
                                     uuidGlobal = connector.unify(transactionId, className, identifier, row.get("#" + identifier), false, false);
                                 } catch (JMSException e) {
                                 }
@@ -608,25 +613,27 @@ public abstract class DatasetAccessor extends BaseAccessor {
                             }
                         }
                     }
-//                    }
-                    LOG.info("Object not found!!!!");
-                    //todo: binding via match
-
-                    String newUuid = UUID.randomUUID().toString();
-                    LOG.info("Registering new record");
-                    PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
-                    uuidUpdate.setString(1, newUuid);
-                    uuidUpdate.setString(2, identifierValue);
-                    uuidUpdate.setString(3, identifierName);
-                    uuidUpdate.executeUpdate();
-                    return newUuid;
                 }
-                return null;
+            } else {
+
+//                    }
+                LOG.info("Object not found!!!!");
+                //todo: binding via match
+
+                String newUuid = UUID.randomUUID().toString();
+                LOG.info("Registering new record");
+                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
+                uuidUpdate.setString(1, newUuid);
+                uuidUpdate.setString(2, identifierValue);
+                uuidUpdate.setString(3, identifierName);
+                uuidUpdate.executeUpdate();
+                return newUuid;
             }
+
         } catch (SQLException e) {
             LOG.error("SQL Exception (in unify): " + e.getLocalizedMessage());
         }
-        return super.getUuidByIdentifier(transactionId, className, identifierName, identifierValue);
+        return super.getUuidByIdentifier(transactionId, className, identifierName, identifierValue, forcedCreation);
     }
 
     @Override
@@ -699,9 +706,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
     @Override
     public String getIdentifierByUuid(String transactionId, String className, String identifierName, String uuidValue) {
-        LOG.debug("Identifying: "+transactionId+" class: "+className+" name: "+identifierName+" uuidValue: "+uuidValue);
+        LOG.debug("Identifying: " + transactionId + " class: " + className + " name: " + identifierName + " uuidValue: " + uuidValue);
         try {
-            String qr ="SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0";
+            String qr = "SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0";
             LOG.debug(qr);
             PreparedStatement st = this.bindingDB.prepareStatement(qr);
             st.setString(1, uuidValue);

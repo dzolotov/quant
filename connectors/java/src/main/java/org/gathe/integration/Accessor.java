@@ -39,7 +39,7 @@ public interface Accessor {
     public boolean remove(String transactionId, String className, String uuid);
 
     //get UUID by identifier (seek)
-    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue);
+    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue, boolean forcedCreation);
 
     //resolve identifier by UUID (reverse-seek)
     public String getIdentifierByUuid(String transactionId, String className, String identifierName, String uuidValue);

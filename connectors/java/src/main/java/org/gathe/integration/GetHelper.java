@@ -72,13 +72,16 @@ public class GetHelper {
         LOG.info("Put to " + path + " value=" + value);
         boolean found = false;
         for (DataElement element : schema) {
-            LOG.info("Schema element: " + element.getXPath() + " (" + element.getDescription() + ")");
+//            LOG.info("Schema element: " + element.getXPath() + " (" + element.getDescription() + ")");
             if (element.getXPath().equalsIgnoreCase(path)) {
                 found = true;
                 break;
             }
         }
-        if (found) result.put(path, value);
+        if (found) {
+//            LOG.info("Put into "+path+" value "+value);
+            result.put(path, value);
+        }
     }
 
     public void applyPatch(HashMap<String, String> patch) {

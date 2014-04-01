@@ -13,7 +13,7 @@ public class AppendJAXB {
         return path;
     }
 
-    public void setName(String path) {
+    public void setPath(String path) {
         this.path = path;
     }
 
@@ -24,5 +24,9 @@ public class AppendJAXB {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    public String toString() {
+        return "Path: " + path + " Value: " + value;
     }
 }

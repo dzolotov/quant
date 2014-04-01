@@ -50,7 +50,7 @@ public abstract class BaseAccessor extends Thread implements Accessor {
     }
 
     @Override
-    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue) {
+    public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue, boolean forcedCreation) {
         return "";
     }
 
@@ -90,7 +90,7 @@ public abstract class BaseAccessor extends Thread implements Accessor {
     }
 
     @Override
-    public String countMatches(String transactionId, String className, HashMap<String,String> filters) {
+    public String countMatches(String transactionId, String className, HashMap<String, String> filters) {
         return "0/0";
     }
 }
