@@ -22,8 +22,22 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
- * Created by dmitrii on 25.03.14.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * <p>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * <p>
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>, Nataliya Sorokina <nv@gathe.org>
  */
+
 public class DBAccessor extends DatasetAccessor {
 
     private Connection connection;
@@ -31,6 +45,21 @@ public class DBAccessor extends DatasetAccessor {
     private String schemaName;
     private DataSource ds;
 //    ArrayList<HashMap<String, String>> data = new ArrayList<>();
+
+    private Connection getConnection() {
+        try {
+            if (this.connection.isClosed()) {
+                this.connection = ds.getConnection();
+            }
+        } catch (SQLException e) {
+            try {
+                this.connection = ds.getConnection();
+            } catch (Exception e2) {
+            }
+            ;
+        }
+        return this.connection;
+    }
 
     private void getSourceData() throws IOException {
 //        if (((DBSchemaJAXB) (this.schema)).getSource() == null) throw new FileNotFoundException();
@@ -66,7 +95,7 @@ public class DBAccessor extends DatasetAccessor {
             Unmarshaller u = jc.createUnmarshaller();
             schema = (DBSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
 //            if (((DBSchemaJAXB) schema).getSource() != null)
-                getSourceData();
+            getSourceData();
             System.out.println(schema.getSchemaFields().size());
             bindingDB = DSBindingDatabase.getDatabase("DB", ((DBSchemaJAXB) schema).getDataClass());
 
@@ -95,7 +124,8 @@ public class DBAccessor extends DatasetAccessor {
         } else {
             //todo: resolve external identifier value
             for (AccessorField field : schema.getSchemaFields()) {
-                if (field.isIdentifier() && field.getScope().equalsIgnoreCase("global") && field.getId().equalsIgnoreCase(identifierName)) return field.getKey();
+                if (field.isIdentifier() && field.getScope().equalsIgnoreCase("global") && field.getId().equalsIgnoreCase(identifierName))
+                    return field.getKey();
             }
         }
         return null;
@@ -109,17 +139,18 @@ public class DBAccessor extends DatasetAccessor {
 
         String tableName = ((DBSchemaJAXB) schema).getTable();
         String fieldName = this.getIdentifierField(identifierName);
-        LOG.debug("Field name: "+fieldName);
+        LOG.debug("Field name: " + fieldName);
         if (fieldName == null) return null;
         try {
             String q = "SELECT * FROM " + tableName;
 
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-                q+=" JOIN "+dbjoin.getWith()+" ON `"+tableName+"`.`"+dbjoin.getFrom()+"`=`"+dbjoin.getWith()+"`.`"+dbjoin.getTo()+"`";
+                q += " JOIN " + dbjoin.getWith() + " ON `" + tableName + "`.`" + dbjoin.getFrom() + "`=`" + dbjoin.getWith() + "`.`" + dbjoin.getTo() + "`";
             }
             q += " WHERE `" + tableName + "`.`" + fieldName + "`=?";
 
             LOG.debug(q);
+            Connection connection = this.getConnection();
             PreparedStatement ps = connection.prepareStatement(q);
             ps.setString(1, identifierValue);
             ResultSet rs = ps.executeQuery();
@@ -143,7 +174,7 @@ public class DBAccessor extends DatasetAccessor {
                 String fieldType = field.getType();
                 String value = "";
                 if (fieldType.equalsIgnoreCase("date")) {
-                    if (rs.getDate(name)==null) {
+                    if (rs.getDate(name) == null) {
                         value = null;
                     } else {
                         LocalDate ld = rs.getDate(name).toLocalDate();
@@ -154,9 +185,9 @@ public class DBAccessor extends DatasetAccessor {
                     value = rs.getString(name);
                 }
 
-                if (value!=null) result.put(path, value);
+                if (value != null) result.put(path, value);
             }
-            LOG.debug("Applying transformation "+applyTransform);
+            LOG.debug("Applying transformation " + applyTransform);
             if (applyTransform) result = this.transform(result);
             return result;
 
@@ -173,11 +204,12 @@ public class DBAccessor extends DatasetAccessor {
             String activeField = ((DBSchemaJAXB) schema).getActive();
             String q = "SELECT * FROM " + tableName;
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-                q+=" JOIN "+dbjoin.getWith()+" ON `"+tableName+"`.`"+dbjoin.getFrom()+"`=`"+dbjoin.getWith()+"`.`"+dbjoin.getTo()+"`";
+                q += " JOIN " + dbjoin.getWith() + " ON `" + tableName + "`.`" + dbjoin.getFrom() + "`=`" + dbjoin.getWith() + "`.`" + dbjoin.getTo() + "`";
             }
 
+            Connection connection = this.getConnection();
             PreparedStatement ps = connection.prepareStatement(q);
-                    //+(activeField!=null?" WHERE `"+activeField+"` IS NOT NULL AND `"+activeField+"`<>0 AND `"+activeField+"`<>''":""));
+            //+(activeField!=null?" WHERE `"+activeField+"` IS NOT NULL AND `"+activeField+"`<>0 AND `"+activeField+"`<>''":""));
             ResultSet rs = ps.executeQuery();
             ArrayList<HashMap<String, String>> result = new ArrayList<>();
 
@@ -198,8 +230,8 @@ public class DBAccessor extends DatasetAccessor {
                     String fieldType = field.getType();
                     String value = "";
                     if (fieldType.equalsIgnoreCase("date")) {
-                        LOG.debug("Parsing "+rs.getDate(name));
-                        if (rs.getDate(name)==null) {
+                        LOG.debug("Parsing " + rs.getDate(name));
+                        if (rs.getDate(name) == null) {
                             value = null;
                         } else {
                             LocalDate ld = rs.getDate(name).toLocalDate();
@@ -212,7 +244,7 @@ public class DBAccessor extends DatasetAccessor {
                         value = rs.getString(name);
                     }
 
-                    if (value!=null) row.put(path, value);
+                    if (value != null) row.put(path, value);
                 }
                 result.add(row);
             }
@@ -254,7 +286,7 @@ public class DBAccessor extends DatasetAccessor {
                 }
             }
         }
-       return identifierValue;
+        return identifierValue;
     }
 
     @Override
@@ -304,7 +336,7 @@ public class DBAccessor extends DatasetAccessor {
         }
 
         String activeField = ((DBSchemaJAXB) schema).getActive();
-        if (activeField!=null) {
+        if (activeField != null) {
             names.add(activeField);
             values.add("1");
         }
@@ -320,20 +352,21 @@ public class DBAccessor extends DatasetAccessor {
         LOG.debug("Query: " + query);
 
         try {
-            PreparedStatement ps = this.connection.prepareStatement(query);
+            Connection connection = this.getConnection();
+            PreparedStatement ps = connection.prepareStatement(query);
             int index = 1;
             for (Object value : values) {
-                if (value==null) {
-                    ps.setObject(index,value);
+                if (value == null) {
+                    ps.setObject(index, value);
                 } else if (value instanceof Instant) {
                     //todo
                     Instant instant = (Instant) value;
 //                    LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
                     java.util.Date date = Date.from(instant);
-                    ps.setDate(index,new java.sql.Date(date.getTime()));
+                    ps.setDate(index, new java.sql.Date(date.getTime()));
                     //set date
                 } else {
-                    ps.setString(index, ""+value);
+                    ps.setString(index, "" + value);
                 }
                 index++;
             }
@@ -404,7 +437,7 @@ public class DBAccessor extends DatasetAccessor {
         }
 
         String activeField = ((DBSchemaJAXB) schema).getActive();
-        if (activeField!=null) {
+        if (activeField != null) {
             names.add(activeField);
             values.add("1");
         }
@@ -434,20 +467,21 @@ public class DBAccessor extends DatasetAccessor {
         LOG.debug("Query: " + query);
         HashMap<String, String> keyResult = new HashMap<>();
         try {
-            PreparedStatement ps = this.connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
+            Connection connection = this.getConnection();
+            PreparedStatement ps = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
             int index = 1;
             for (Object value : values) {
-                if (value==null) {
-                    ps.setObject(index,value);
+                if (value == null) {
+                    ps.setObject(index, value);
                 } else if (value instanceof Instant) {
                     //todo
                     Instant instant = (Instant) value;
 //                    LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
                     java.util.Date date = Date.from(instant);
-                    ps.setDate(index,new java.sql.Date(date.getTime()));
+                    ps.setDate(index, new java.sql.Date(date.getTime()));
                     //set date
                 } else {
-                    ps.setString(index, ""+value);
+                    ps.setString(index, "" + value);
                 }
                 index++;
             }
@@ -492,6 +526,7 @@ public class DBAccessor extends DatasetAccessor {
         String tableName = ((DBSchemaJAXB) schema).getTable();
         String fieldName = this.getIdentifierField(identifierName);
         try {
+            Connection connection = this.getConnection();
             PreparedStatement ps = connection.prepareStatement("SELECT * FROM " + tableName + " WHERE " + fieldName + "=?");
             ps.setString(1, identifierValue);
             ResultSet rs = ps.executeQuery();

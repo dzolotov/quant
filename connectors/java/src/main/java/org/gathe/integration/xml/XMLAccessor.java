@@ -12,7 +12,20 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Created by mit on 01.04.14.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * <p>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * <p>
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>, Nataliya Sorokina <nv@gathe.org>
  */
 public class XMLAccessor extends DatasetAccessor {
 
@@ -86,6 +99,7 @@ public class XMLAccessor extends DatasetAccessor {
 
         List<DataClass> sch = this.getSchema();
         GetHelper gh = new GetHelper(null, null, className);
+        gh.setEncoding(((XMLSchemaJAXB) schema).getEncoding());
         for (DataClass sc : sch) {
             Iterator<DataElement> de = sc.getElements();
             while (de.hasNext()) {
@@ -99,10 +113,11 @@ public class XMLAccessor extends DatasetAccessor {
 
         File result = new File(filename);
         try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(result));
+            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(result), ((XMLSchemaJAXB) schema).getEncoding()));
             bw.write(res);
             bw.close();
         } catch (IOException e) {
+            e.printStackTrace();
         }
         return true;
     }

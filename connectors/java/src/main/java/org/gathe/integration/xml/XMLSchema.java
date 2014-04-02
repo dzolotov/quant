@@ -1,7 +1,20 @@
 package org.gathe.integration.xml;
 
 /**
- * Created by mit on 01.04.14.
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>, Nataliya Sorokina <nv@gathe.org>
  */
 
 import org.gathe.integration.AccessorField;
@@ -32,6 +45,17 @@ class XMLSchemaJAXB extends AccessorSchema {
 
     @XmlAttribute(name = "class")
     private String dataClass;
+
+    @XmlAttribute(name = "encoding")
+    private String encoding = "utf-8";
+
+    public String getEncoding() {
+        return encoding;
+    }
+
+    public void setEncoding(String encoding) {
+        this.encoding = encoding;
+    }
 
     public String getDir() {
         return dir;

@@ -1,7 +1,20 @@
 package org.gathe.integration.db;
 
 /**
- * Created by dmitrii on 25.03.14.
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>, Nataliya Sorokina <nv@gathe.org>
  */
 
 import org.gathe.integration.AccessorField;
@@ -75,9 +88,13 @@ class DBSchemaJAXB extends AccessorSchema {
         fields.add(field);
     }
 
-    public void addJoin(DBJoinJAXB join) { joins.add(join); }
+    public void addJoin(DBJoinJAXB join) {
+        joins.add(join);
+    }
 
-    public List<DBJoinJAXB> getJoin() { return joins; }
+    public List<DBJoinJAXB> getJoin() {
+        return joins;
+    }
 
     @Override
     public List<AccessorField> getSchemaFields() {
@@ -112,7 +129,7 @@ class DBFieldJAXB extends AccessorField {
 
     String emptyBehavior = "stay";
 
-    @XmlAttribute(name="value")
+    @XmlAttribute(name = "value")
     public String getValue() {
         return value;
     }
@@ -239,9 +256,13 @@ class DBFieldJAXB extends AccessorField {
         replaces.add(replace);
     }
 
-    public void addAppend(AppendJAXB append) { appends.add(append); }
+    public void addAppend(AppendJAXB append) {
+        appends.add(append);
+    }
 
-    public List<AppendJAXB> getAppends() { return appends; }
+    public List<AppendJAXB> getAppends() {
+        return appends;
+    }
 
     @Override
     public boolean isIdentifier() {

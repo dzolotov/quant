@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
+ * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>, Nataliya Sorokina <nv@gathe.org>
  */
 public class BasicConnector extends Thread implements Connector {
 
@@ -438,7 +438,7 @@ public class BasicConnector extends Thread implements Connector {
     private void doActionWithoutResponse(String action, String transactionId, String className, String identifierValue, String suffix, String content) throws JMSException {
         while (!activated) {
             try {
-                LOG.debug("Waiting for activation");
+                LOG.debug("Waiting for activation " + this.id);
                 Thread.sleep(100);
             } catch (Exception e) {
             }
@@ -544,7 +544,7 @@ public class BasicConnector extends Thread implements Connector {
     private String doMatchAction(String action, String transactionId, String className, HashMap<String, String> filters, boolean async) throws JMSException {
         while (!activated) {
             try {
-                LOG.debug("Waiting for activation");
+                LOG.debug("Waiting for activation " + id);
                 Thread.sleep(100);
             } catch (Exception e) {
             }
@@ -593,7 +593,7 @@ public class BasicConnector extends Thread implements Connector {
     private String doAction(String action, String transactionId, String className, String identifierValue, String suffix, boolean async) throws JMSException {
         while (!activated) {
             try {
-                LOG.debug("Waiting for activation");
+                LOG.debug("Waiting for activation of " + this.id);
                 Thread.sleep(100);
             } catch (Exception e) {
             }
@@ -637,6 +637,7 @@ public class BasicConnector extends Thread implements Connector {
 
     public void run() {
 
+        System.out.println("\033]0;" + this.id + "\007");
         LOG.info("Primary message loop initialized");
 
         isDisconnected = false;
@@ -812,8 +813,8 @@ public class BasicConnector extends Thread implements Connector {
                             Enumeration<String> filters = textMessage.getPropertyNames();
 
                             String mode = textMessage.getStringProperty("mode");
-                            String explain = ""+textMessage.getStringProperty("explain");
-                            boolean needToExplain = (""+explain).equalsIgnoreCase("true");
+                            String explain = "" + textMessage.getStringProperty("explain");
+                            boolean needToExplain = ("" + explain).equalsIgnoreCase("true");
 
                             HashMap<String, String> filterData = new HashMap<>();
                             while (filters.hasMoreElements()) {
