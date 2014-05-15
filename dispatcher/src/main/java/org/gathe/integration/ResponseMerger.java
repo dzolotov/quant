@@ -38,9 +38,9 @@ public class ResponseMerger {
         this.responses = responses;
 
         LOG.info("Merging xml response");
-        LOG.debug("Length="+responses.size());
-        for (int i=0;i<responses.size();i++) {
-            LOG.debug("Data["+i+"]="+responses.get(i));
+        LOG.debug("Length=" + responses.size());
+        for (int i = 0; i < responses.size(); i++) {
+            LOG.debug("Data[" + i + "]=" + responses.get(i));
         }
     }
 
@@ -71,7 +71,7 @@ public class ResponseMerger {
             if (item.getTextContent().trim().length() != 0) previousTextContent = item.getTextContent();
         }
 
-        if (textContent != null && previousTextContent==null) {
+        if (textContent != null && previousTextContent == null) {
             newDocumentParentElement.appendChild(newDocument.createTextNode(textContent));
         }
 
@@ -88,7 +88,7 @@ public class ResponseMerger {
                 newDocumentParentElement.appendChild(newElement);
                 newParent = newElement;
             }
-            LOG.info("Diving deep to "+subNodes.item(i).getNodeName()+" (newpath: "+path+")");
+            LOG.info("Diving deep to " + subNodes.item(i).getNodeName() + " (newpath: " + path + ")");
             parseXMLOneLevel((Element) subNodes.item(i), newDocument, newParent, path);
         }
     }
@@ -103,12 +103,12 @@ public class ResponseMerger {
 
             String firstResponse = "";
             for (String response : responses) {
-                if (response==null || response.trim().length()==0) continue;
+                if (response == null || response.trim().length() == 0) continue;
                 firstResponse = response;
             }
             DocumentBuilder responseParserBuilder = responseFactory.newDocumentBuilder();
             Document doc = responseParserBuilder.parse(new InputSource(new StringReader(firstResponse)));
-            if (firstResponse.trim().length()==0) return mergedResponse;
+            if (firstResponse.trim().length() == 0) return mergedResponse;
 
             Element newRoot = mergedResponse.createElement(className);
             mergedResponse.appendChild(newRoot);
@@ -116,7 +116,7 @@ public class ResponseMerger {
             for (String response : responses) {
                 Document parse = responseParserBuilder.parse(new InputSource(new StringReader(response)));
                 Element root = parse.getDocumentElement();
-                if (response==null || response.trim().length()==0) continue;      //skip empty
+                if (response == null || response.trim().length() == 0) continue;      //skip empty
                 try {
                     parseXMLOneLevel(root, mergedResponse, newRoot, "");
                 } catch (Exception e) {

@@ -499,8 +499,10 @@ public class ReceiverThread extends Thread {
                                     filterData.put(filterName, filterCondition);
                                 }
                             }
-                            filterData.put("mode","scan");
-                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new ScanResponseThread(transactionId, messageId));
+                            filterData.put("mode", "seek");
+                            filterData.put("explain", "false");
+                            LOG.debug("Filterdata: " + filterData);
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new MatchResponseThread(transactionId, messageId));
                             th.start();
                             break;
 
@@ -572,6 +574,7 @@ public class ReceiverThread extends Thread {
         }
         LOG.info("Leaving receiver thread");
     }
+/*
 
     class ScanResponseThread extends ResponseThread {
         public ScanResponseThread(String transactionId, String messageId) {
@@ -604,6 +607,7 @@ public class ReceiverThread extends Thread {
             th.start();
         }
     }
+*/
 
     class MatchResponseThread extends ResponseThread {
         public MatchResponseThread(String transactionId, String messageId) {
