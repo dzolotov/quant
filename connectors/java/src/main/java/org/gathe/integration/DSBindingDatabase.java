@@ -53,7 +53,7 @@ public class DSBindingDatabase {
         ;
         try {
             Statement st = connection.createStatement();
-            String query = "CREATE TABLE " + bindingPrefix.toUpperCase() + "_" + className + " (uuid varchar(36), name varchar(255), id varchar(255), hash varchar(128), actual timestamp, disabled int, value varchar(4096))";
+            String query = "CREATE TABLE " + bindingPrefix.toUpperCase() + "_" + className + " (uuid varchar(36), name varchar(255), id varchar(255), hash varchar(128), actual timestamp, disabled int, source varchar(128), value varchar(4096))";
             System.out.println(query);
             st.executeUpdate(query);
             connection.commit();

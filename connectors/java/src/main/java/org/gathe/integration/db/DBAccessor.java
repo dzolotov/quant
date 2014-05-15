@@ -5,7 +5,6 @@ import org.gathe.integration.DSBindingDatabase;
 import org.gathe.integration.DataClass;
 import org.gathe.integration.DatasetAccessor;
 
-import javax.sql.DataSource;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
@@ -40,27 +39,35 @@ import java.util.List;
 
 public class DBAccessor extends DatasetAccessor {
 
-    private Connection connection;
-
     private String schemaName;
-    private DataSource ds;
+    private PooledConnectionWrapper ds;
 //    ArrayList<HashMap<String, String>> data = new ArrayList<>();
 
-    private Connection getConnection() {
+    public DBAccessor(String systemId, String schemaName, PooledConnectionWrapper ds) {
+        super("DS", systemId);
+        this.ds = ds;
+        this.schemaName = schemaName;
+        JAXBContext jc = null;
         try {
-            if (this.connection.isClosed()) {
-                this.connection = ds.getConnection();
-            }
-        } catch (SQLException e) {
-            try {
-                this.connection = ds.getConnection();
-            } catch (Exception e2) {
-            }
-            ;
-        }
-        return this.connection;
-    }
+            jc = JAXBContext.newInstance(DBSchemaJAXB.class);
+            Unmarshaller u = jc.createUnmarshaller();
+            schema = (DBSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
+//            if (((DBSchemaJAXB) schema).getSource() != null)
+//            getSourceData();
+            getConnection();
+            System.out.println(schema.getSchemaFields().size());
+            bindingDB = DSBindingDatabase.getDatabase("DS", ((DBSchemaJAXB) schema).getDataClass());
 
+        } catch (JAXBException | IOException e) {
+            e.printStackTrace();
+        }
+
+        for (AccessorField field : schema.getSchemaFields()) {
+            LOG.debug("Schema entry: " + field);
+        }
+
+    }
+/*
     private void getSourceData() throws IOException {
 //        if (((DBSchemaJAXB) (this.schema)).getSource() == null) throw new FileNotFoundException();
 
@@ -73,40 +80,40 @@ public class DBAccessor extends DatasetAccessor {
 //            Context ctx = new InitialContext();
 //            DataSource ds = (DataSource) ctx.lookup(source);
             this.connection = ds.getConnection();
-            this.connection.createStatement().executeUpdate("SET NAMES 'utf8'");
+            //if (this.connection.getMetaData().getDriverName().contains("M"))
+            //this.connection.createStatement().executeUpdate("SET NAMES 'utf8'");
         } catch (SQLException ne) {
-            ne.printStackTrace();
+//            ne.printStackTrace();
         }
         //todo: parse data
+        //todo: parse data
+    }*/
+
+    private Connection getConnection() {
+        try {
+            return ds.getPooledConnection().getConnection();
+        } catch (Exception e) {
+            return null;
+        }
+//        try {
+//            if (this.connection==null || this.connection.isClosed()) {
+//                this.connection = ds.getConnection();
+//            }
+//            Statement st = this.connection.createStatement();
+//            st.executeQuery("SELECT 1");
+//        } catch (SQLException e) {
+//            try {
+//                this.connection = ds.getConnection();
+//            } catch (Exception e2) {
+//            }
+//        }
+//        return this.connection;
     }
 
     public void setSource(String source) throws IOException {
         ((DBSchemaJAXB) schema).setSource(source);
-        this.getSourceData();
-    }
-
-    public DBAccessor(String systemId, String schemaName, DataSource ds) {
-        super("DB", systemId);
-        this.ds = ds;
-        this.schemaName = schemaName;
-        JAXBContext jc = null;
-        try {
-            jc = JAXBContext.newInstance(DBSchemaJAXB.class);
-            Unmarshaller u = jc.createUnmarshaller();
-            schema = (DBSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
-//            if (((DBSchemaJAXB) schema).getSource() != null)
-            getSourceData();
-            System.out.println(schema.getSchemaFields().size());
-            bindingDB = DSBindingDatabase.getDatabase("DB", ((DBSchemaJAXB) schema).getDataClass());
-
-        } catch (JAXBException | IOException e) {
-            e.printStackTrace();
-        }
-
-        for (AccessorField field : schema.getSchemaFields()) {
-            LOG.debug("Schema entry: " + field);
-        }
-
+        getConnection();
+//        this.getSourceData();
     }
 
     private String getIdentifierField(String identifierName) {
@@ -145,9 +152,9 @@ public class DBAccessor extends DatasetAccessor {
             String q = "SELECT * FROM " + tableName;
 
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-                q += " JOIN " + dbjoin.getWith() + " ON `" + tableName + "`.`" + dbjoin.getFrom() + "`=`" + dbjoin.getWith() + "`.`" + dbjoin.getTo() + "`";
+                q += " JOIN " + dbjoin.getWith() + " ON " + tableName + "." + dbjoin.getFrom() + "=" + dbjoin.getWith() + "." + dbjoin.getTo() + "";
             }
-            q += " WHERE `" + tableName + "`.`" + fieldName + "`=?";
+            q += " WHERE " + tableName + "." + fieldName + "=?";
 
             LOG.debug(q);
             Connection connection = this.getConnection();
@@ -204,8 +211,10 @@ public class DBAccessor extends DatasetAccessor {
             String activeField = ((DBSchemaJAXB) schema).getActive();
             String q = "SELECT * FROM " + tableName;
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-                q += " JOIN " + dbjoin.getWith() + " ON `" + tableName + "`.`" + dbjoin.getFrom() + "`=`" + dbjoin.getWith() + "`.`" + dbjoin.getTo() + "`";
+                q += " JOIN " + dbjoin.getWith() + " ON " + tableName + "." + dbjoin.getFrom() + "=" + dbjoin.getWith() + "." + dbjoin.getTo() + "";
             }
+            q += " ORDER BY " + tableName + ".ID";
+            LOG.debug("*************************************** " + q);
 
             Connection connection = this.getConnection();
             PreparedStatement ps = connection.prepareStatement(q);
@@ -241,6 +250,7 @@ public class DBAccessor extends DatasetAccessor {
 //
 //                        value = rs.getDate(name).toInstant().toString();
                     } else {
+//                        LOG.debug("Extracting field "+name);
                         value = rs.getString(name);
                     }
 
@@ -248,6 +258,7 @@ public class DBAccessor extends DatasetAccessor {
                 }
                 result.add(row);
             }
+//            LOG.debug(result);
             return result;
 
         } catch (SQLException se) {
@@ -487,6 +498,7 @@ public class DBAccessor extends DatasetAccessor {
             }
             ps.executeUpdate();
             ResultSet keys = ps.getGeneratedKeys();
+            LOG.debug("IDNames: " + identifierName);
 
             String[] idNames = identifierName.split(",");
             List<String> idList = new ArrayList<>(Arrays.asList(idNames));
@@ -497,6 +509,7 @@ public class DBAccessor extends DatasetAccessor {
 
 //                for (int i = 1; i <= columnCount; i++) {
                 String key = keys.getString(1);
+                LOG.debug("Key: " + key + " identifier: " + identifierName);
                 keyResult.put(this.systemId + ":" + identifierName, key);
 //                    LOG.debug("Key found: "+i+": "+rsMetaData.getColumnName(i));
 //                    String keyName = rsMetaData.getColumnName(i);
@@ -542,4 +555,22 @@ public class DBAccessor extends DatasetAccessor {
         return this.getClassSchema(((DBSchemaJAXB) schema).getDataClass());
     }
 
+    @Override
+    protected void updateUuid(String identifierName, String identifierValue, String uuidValue) {
+        String uuid = (((DBSchemaJAXB) schema).getUuid());
+        if (uuid != null) {
+            Connection connection = this.getConnection();
+            String tableName = ((DBSchemaJAXB) schema).getTable();
+            String fieldName = this.getIdentifierField(identifierName);
+            try {
+                PreparedStatement ps = connection.prepareStatement("UPDATE " + tableName + " SET " + uuid + "=? WHERE " + fieldName + "=?");
+                ps.setString(1, uuidValue);
+                ps.setString(2, identifierValue);
+                ps.executeUpdate();
+            } catch (SQLException se) {
+                LOG.error("Error when updating uuid!");
+            }
+
+        }
+    }
 }

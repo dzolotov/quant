@@ -21,4 +21,6 @@ import java.util.List;
 
 public abstract class AccessorSchema {
     public abstract List<AccessorField> getSchemaFields();
+
+    public abstract String getUuid();
 }

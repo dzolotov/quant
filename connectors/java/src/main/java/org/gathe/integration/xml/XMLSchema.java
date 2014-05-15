@@ -49,6 +49,12 @@ class XMLSchemaJAXB extends AccessorSchema {
     @XmlAttribute(name = "encoding")
     private String encoding = "utf-8";
 
+    private String uuid;
+
+    public String getUuid() {
+        return uuid;
+    }
+
     public String getEncoding() {
         return encoding;
     }
@@ -97,25 +103,21 @@ class XMLSchemaJAXB extends AccessorSchema {
 @XmlRootElement(name = "field")
 class XMLFieldJAXB extends AccessorField {
 
-    private String xpath = null;
-
-    private String type = "text";
-
     String id = "false";
-
     String path = "";
-
     String description = "";
-
     String scope = "local";
-
     String ref = null;
-
     String defaultValue = null;
-
     String nullBehavior = "stay";
-
     String emptyBehavior = "stay";
+    String matchIgnore = "false";
+    private String xpath = null;
+    private String type = "text";
+    @XmlElement(name = "replace")
+    private List<ReplaceJAXB> replaces;
+    @XmlElement(name = "append")
+    private List<AppendJAXB> appends;
 
     @XmlAttribute
     public String getDefaultValue() {
@@ -131,6 +133,10 @@ class XMLFieldJAXB extends AccessorField {
         return nullBehavior;
     }
 
+    public void setNullBehavior(String nullBehavior) {
+        this.nullBehavior = nullBehavior;
+    }
+
     @XmlAttribute
     public String getEmptyBehavior() {
         return emptyBehavior;
@@ -140,16 +146,14 @@ class XMLFieldJAXB extends AccessorField {
         this.emptyBehavior = emptyBehavior;
     }
 
-    public void setNullBehavior(String nullBehavior) {
-        this.nullBehavior = nullBehavior;
+    @XmlAttribute
+    public String getMatchIgnore() {
+        return matchIgnore;
     }
 
-
-    @XmlElement(name = "replace")
-    private List<ReplaceJAXB> replaces;
-
-    @XmlElement(name = "append")
-    private List<AppendJAXB> appends;
+    public void setMatchIgnore(String matchIgnore) {
+        this.matchIgnore = matchIgnore;
+    }
 
     @XmlAttribute
     public String getRef() {

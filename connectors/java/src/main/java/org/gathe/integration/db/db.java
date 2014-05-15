@@ -45,6 +45,12 @@ class DBSchemaJAXB extends AccessorSchema {
 
     @XmlAttribute(name = "source")
     private String source = null;
+    @XmlAttribute(name = "active")
+    private String active = null;
+    @XmlAttribute(name = "table")
+    private String table = null;
+    @XmlAttribute(name = "uuid")
+    private String uuid = null;
 
     public String getTable() {
         return table;
@@ -54,9 +60,6 @@ class DBSchemaJAXB extends AccessorSchema {
         this.table = table;
     }
 
-    @XmlAttribute(name = "active")
-    private String active = null;
-
     public String getActive() {
         return active;
     }
@@ -65,11 +68,20 @@ class DBSchemaJAXB extends AccessorSchema {
         this.active = active;
     }
 
-    @XmlAttribute(name = "table")
-    private String table = null;
+    public String getUuid() {
+        return uuid;
+    }
+
+    public void setUuid(String uuid) {
+        this.uuid = uuid;
+    }
 
     public String getDataClass() {
         return dataClass;
+    }
+
+    public void setDataClass(String dataClass) {
+        this.dataClass = dataClass;
     }
 
     public String getSource() {
@@ -78,10 +90,6 @@ class DBSchemaJAXB extends AccessorSchema {
 
     public void setSource(String source) {
         this.source = source;
-    }
-
-    public void setDataClass(String dataClass) {
-        this.dataClass = dataClass;
     }
 
     public void addField(DBFieldJAXB field) {
@@ -107,27 +115,22 @@ class DBSchemaJAXB extends AccessorSchema {
 @XmlRootElement(name = "field")
 class DBFieldJAXB extends AccessorField {
 
-    private String name = null;
-
-    private String type = "text";
-
     String id = "false";
-
     String path = "";
-
     String description = "";
-
     String scope = "local";
-
     String ref = null;
-
     String value = null;
-
     String defaultValue = null;
-
     String nullBehavior = "stay";
-
     String emptyBehavior = "stay";
+    String matchIgnore = "false";
+    private String name = null;
+    private String type = "text";
+    @XmlElement(name = "replace")
+    private List<ReplaceJAXB> replaces;
+    @XmlElement(name = "append")
+    private List<AppendJAXB> appends;
 
     @XmlAttribute(name = "value")
     public String getValue() {
@@ -138,11 +141,14 @@ class DBFieldJAXB extends AccessorField {
         this.value = value;
     }
 
-    @XmlElement(name = "replace")
-    private List<ReplaceJAXB> replaces;
+    @XmlAttribute
+    public String getMatchIgnore() {
+        return matchIgnore;
+    }
 
-    @XmlElement(name = "append")
-    private List<AppendJAXB> appends;
+    public void setMatchIgnore(String matchIgnore) {
+        this.matchIgnore = matchIgnore;
+    }
 
     @XmlAttribute
     public String getDefaultValue() {

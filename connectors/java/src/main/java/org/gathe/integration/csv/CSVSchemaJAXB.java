@@ -39,11 +39,15 @@ class CSVSchemaJAXB extends AccessorSchema {
     @XmlAttribute(name = "source")
     private String source = null;
 
+    private String uuid = null;
     @XmlAttribute(name = "encoding")
     private String encoding = "utf-8";
-
     @XmlAttribute(name = "header")
     private String header = "false";
+
+    public String getUuid() {
+        return uuid;
+    }
 
     public String getHeader() {
         return header;
@@ -55,6 +59,10 @@ class CSVSchemaJAXB extends AccessorSchema {
 
     public String getDataClass() {
         return dataClass;
+    }
+
+    public void setDataClass(String dataClass) {
+        this.dataClass = dataClass;
     }
 
     public String getSource() {
@@ -71,10 +79,6 @@ class CSVSchemaJAXB extends AccessorSchema {
 
     public void setEncoding(String encoding) {
         this.encoding = encoding;
-    }
-
-    public void setDataClass(String dataClass) {
-        this.dataClass = dataClass;
     }
 
     public void addField(CSVFieldJAXB field) {
@@ -99,25 +103,21 @@ class CSVSchemaJAXB extends AccessorSchema {
 @XmlRootElement(name = "field")
 class CSVFieldJAXB extends AccessorField {
 
-    private String order = null;
-
-    private String type = "text";
-
     String id = "false";
-
     String path = "";
-
     String description = "";
-
     String scope = "local";
-
     String ref = null;
-
     String defaultValue = null;
-
     String nullBehavior;
-
     String emptyBehavior;
+    String matchIgnore = "false";
+    private String order = null;
+    private String type = "text";
+    @XmlElement(name = "replace")
+    private List<ReplaceJAXB> replaces;
+    @XmlElement(name = "append")
+    private List<AppendJAXB> appends;
 
     @XmlAttribute
     public String getDefaultValue() {
@@ -129,8 +129,21 @@ class CSVFieldJAXB extends AccessorField {
     }
 
     @XmlAttribute
+    public String getMatchIgnore() {
+        return matchIgnore;
+    }
+
+    public void setMatchIgnore(String matchIgnore) {
+        this.matchIgnore = matchIgnore;
+    }
+
+    @XmlAttribute
     public String getNullBehavior() {
         return nullBehavior;
+    }
+
+    public void setNullBehavior(String nullBehavior) {
+        this.nullBehavior = nullBehavior;
     }
 
     public String getEmptyBehavior() {
@@ -140,17 +153,6 @@ class CSVFieldJAXB extends AccessorField {
     public void setEmptyBehavior(String emptyBehavior) {
         this.emptyBehavior = emptyBehavior;
     }
-
-    public void setNullBehavior(String nullBehavior) {
-        this.nullBehavior = nullBehavior;
-    }
-
-
-    @XmlElement(name = "replace")
-    private List<ReplaceJAXB> replaces;
-
-    @XmlElement(name = "append")
-    private List<AppendJAXB> appends;
 
     @XmlAttribute
     public String getRef() {

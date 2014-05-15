@@ -32,7 +32,7 @@ public class XMLAccessor extends DatasetAccessor {
     private String schemaName;
 
     public XMLAccessor(String systemId, String schemaName) {
-        super("XML", systemId);
+        super("DS", systemId);
         this.schemaName = schemaName;
         JAXBContext jc = null;
         try {
@@ -44,7 +44,7 @@ public class XMLAccessor extends DatasetAccessor {
             }
 //            if (((XMLSchemaJAXB) schema).getSource() != null) parseSourceFile();
 //            System.out.println(schema.getSchemaFields().size());
-            bindingDB = DSBindingDatabase.getDatabase("XML", ((XMLSchemaJAXB) schema).getDataClass());
+            bindingDB = DSBindingDatabase.getDatabase("DS", ((XMLSchemaJAXB) schema).getDataClass());
         } catch (JAXBException | IOException e) {
             e.printStackTrace();
         }

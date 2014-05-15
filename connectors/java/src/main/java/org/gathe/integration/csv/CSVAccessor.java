@@ -39,11 +39,32 @@ import java.util.List;
 
 public class CSVAccessor extends DatasetAccessor {
 
+    ArrayList<HashMap<String, String>> data = new ArrayList<>();
     private char separator;
     private char quote;
-
     private String schemaName;
-    ArrayList<HashMap<String, String>> data = new ArrayList<>();
+
+    public CSVAccessor(String systemId, String schemaName, char separator, char quote) throws IOException {
+        super("DS", systemId);
+        this.schemaName = schemaName;
+        JAXBContext jc = null;
+        this.separator = separator;
+        this.quote = quote;
+        try {
+            jc = JAXBContext.newInstance(CSVSchemaJAXB.class);
+            Unmarshaller u = jc.createUnmarshaller();
+            schema = (CSVSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
+
+            for (AccessorField field : schema.getSchemaFields()) {
+                LOG.debug("Schema entry: " + field);
+            }
+            if (((CSVSchemaJAXB) schema).getSource() != null) parseSourceFile();
+            System.out.println(schema.getSchemaFields().size());
+            bindingDB = DSBindingDatabase.getDatabase("DS", ((CSVSchemaJAXB) schema).getDataClass());
+        } catch (JAXBException e) {
+            e.printStackTrace();
+        }
+    }
 
     private void parseSourceFile() throws IOException {
         if (((CSVSchemaJAXB) (this.schema)).getSource() == null) throw new FileNotFoundException();
@@ -102,28 +123,6 @@ public class CSVAccessor extends DatasetAccessor {
 
     public void setEncoding(String encoding) {
         ((CSVSchemaJAXB) schema).setEncoding(encoding);
-    }
-
-    public CSVAccessor(String systemId, String schemaName, char separator, char quote) throws IOException {
-        super("CSV", systemId);
-        this.schemaName = schemaName;
-        JAXBContext jc = null;
-        this.separator = separator;
-        this.quote = quote;
-        try {
-            jc = JAXBContext.newInstance(CSVSchemaJAXB.class);
-            Unmarshaller u = jc.createUnmarshaller();
-            schema = (CSVSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
-
-            for (AccessorField field : schema.getSchemaFields()) {
-                LOG.debug("Schema entry: " + field);
-            }
-            if (((CSVSchemaJAXB) schema).getSource() != null) parseSourceFile();
-            System.out.println(schema.getSchemaFields().size());
-            bindingDB = DSBindingDatabase.getDatabase("CSV", ((CSVSchemaJAXB) schema).getDataClass());
-        } catch (JAXBException e) {
-            e.printStackTrace();
-        }
     }
 
     @Override

@@ -4,6 +4,7 @@ import org.apache.log4j.Logger;
 import org.apache.qpid.amqp_1_0.jms.Queue;
 import org.apache.qpid.amqp_1_0.jms.Session;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
+import org.gathe.integration.db.DBAccessor;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -43,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class BasicConnector extends Thread implements Connector {
 
+    protected ArrayList<String> selfTransactions = new ArrayList<>();
     //Destination queue to echo selfdiagnostics
     org.apache.qpid.amqp_1_0.jms.MessageProducer selfProducer;
     //Destination queue to exchange messages with dispatcher
@@ -51,28 +53,41 @@ public class BasicConnector extends Thread implements Connector {
     org.apache.qpid.amqp_1_0.jms.MessageConsumer consumer;
     //Source queue for modification commands
     org.apache.qpid.amqp_1_0.jms.MessageConsumer modification;
-
-    protected ArrayList<String> selfTransactions = new ArrayList<>();
-
-    private String semaphore = "";
-
     org.apache.qpid.amqp_1_0.jms.Session session;
+    HashMap<DataClass, Accessor> schema = new HashMap<>();
+    ArrayList<String> uuidCommands = new ArrayList<String>();
+    private String semaphore = "";
     private boolean activated = false;
     private boolean readOnly = false;
-
     private String id;
     //    private Accessor accessor;
     private Logger LOG = Logger.getLogger(this.getClass());
     private ConcurrentHashMap<String, String> getResponse = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, Thread> responseThreads = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, HashMap<String, String>> updatePatches = new ConcurrentHashMap<>();
-
-    private boolean isDisconnected;
-
-    HashMap<DataClass, Accessor> schema = new HashMap<>();
 //    List<DataClass> schema = new ArrayList<>();
+private boolean isDisconnected;
 
-    ArrayList<String> uuidCommands = new ArrayList<String>();
+    public BasicConnector(String id, boolean readOnly) throws ClassNotFoundException, NamingException, JMSException {
+        this.id = id;
+
+        this.readOnly = readOnly;
+        connectESB(readOnly);
+
+        if (!readOnly) {
+            Thread modificationThread = new ModificationThread();
+            modificationThread.start();        //running parallel modification thread
+        }
+
+        uuidCommands.add("get");
+        uuidCommands.add("specify");
+        uuidCommands.add("identify");
+        uuidCommands.add("update");
+        uuidCommands.add("remove");
+
+        Runtime.getRuntime().addShutdownHook(new ConnectorShutdownHook());
+//        this.start();
+    }
 
     protected String joinStrings(String glue, String[] array) {
         String line = "";
@@ -115,27 +130,6 @@ public class BasicConnector extends Thread implements Connector {
         } catch (ClassNotFoundException | NamingException e) {
             e.printStackTrace();
         }
-    }
-
-    public BasicConnector(String id, boolean readOnly) throws ClassNotFoundException, NamingException, JMSException {
-        this.id = id;
-
-        this.readOnly = readOnly;
-        connectESB(readOnly);
-
-        if (!readOnly) {
-            Thread modificationThread = new ModificationThread();
-            modificationThread.start();        //running parallel modification thread
-        }
-
-        uuidCommands.add("get");
-        uuidCommands.add("specify");
-        uuidCommands.add("identify");
-        uuidCommands.add("update");
-        uuidCommands.add("remove");
-
-        Runtime.getRuntime().addShutdownHook(new ConnectorShutdownHook());
-//        this.start();
     }
 
     public void appendAccessor(Accessor accessor) {
@@ -421,6 +415,7 @@ public class BasicConnector extends Thread implements Connector {
 
     @Override
     public String matchAll(String transactionId, String className, HashMap<String, String> filters, boolean async, boolean isLocalRequest) throws JMSException {
+        LOG.debug("Match " + isLocalRequest);
         boolean stored = !selfTransactions.contains(transactionId + ":" + className) && transactionId != null;
         if (stored) selfTransactions.add(transactionId + ":" + className);
         String result;
@@ -428,6 +423,8 @@ public class BasicConnector extends Thread implements Connector {
             result = this.doMatchAction("matchAll", transactionId, className, filters, async);
         } else {
             Accessor accessor = this.getAccessor(className);
+            LOG.debug("Classname is " + className + " accessor: " + accessor);
+            if (accessor instanceof DBAccessor) LOG.debug("DBAccessor");
             String[] results = accessor.match(transactionId, className, filters, false);
             result = this.joinStrings(",", results);
         }
@@ -483,6 +480,11 @@ public class BasicConnector extends Thread implements Connector {
     @Override
     public String identify(String className, String identifier, String uuid) throws JMSException {
         return this.identify(null, className, identifier, uuid, false);
+    }
+
+    @Override
+    public String identify(String className, String identifier, String uuid, boolean isLocalRequest) throws JMSException {
+        return this.identify(null, className, identifier, uuid, isLocalRequest);
     }
 
     @Override

@@ -33,6 +33,7 @@ import java.util.UUID;
  */
 
 public abstract class DatasetAccessor extends BaseAccessor {
+    private static String digits = "0123456789abcdef";
     protected AccessorSchema schema;
     protected Logger LOG = Logger.getLogger(this.getClass());
     protected String systemId;
@@ -45,6 +46,19 @@ public abstract class DatasetAccessor extends BaseAccessor {
         this.systemId = systemId;
     }
 
+    public static String toHex(byte[] data) {
+        StringBuffer buf = new StringBuffer();
+
+        for (int i = 0; i != data.length; i++) {
+            int v = data[i] & 0xff;
+
+            buf.append(digits.charAt(v >> 4));
+            buf.append(digits.charAt(v & 0xf));
+        }
+
+        return buf.toString();
+    }
+
     /**
      * Calculate hash for dataset row
      *
@@ -53,16 +67,19 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
     protected String getHash(HashMap<String, String> row) {
         String hashRow = "";
-        String hashResult = "";
         for (AccessorField field : schema.getSchemaFields()) {
             if (field.isIdentifier()) continue; //skip identifiers
             if (!hashRow.isEmpty()) hashRow += "~";
             hashRow += row.get(field.getPath());
         }
 
+        String hashResult = "";
+
         try {
             MessageDigest md = MessageDigest.getInstance("SHA1");
-            hashResult = md.digest(hashRow.getBytes("utf-8")).toString();
+            hashResult = toHex(md.digest(hashRow.getBytes("utf-8")));
+
+
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException nsae) {
             LOG.error("Hash generation error: " + nsae.getLocalizedMessage());
         }
@@ -77,7 +94,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         DataClass dc = new DataClass(dataClass);
         dc.setMatchable(true);
         for (AccessorField field : schema.getSchemaFields()) {
-            LOG.info("Extracting " + field.getId() + ":" + field.getPath() + ":" + field.getDescription());
+//            LOG.info("Extracting " + field.getId() + ":" + field.getPath() + ":" + field.getDescription());
             if (field.isIdentifier()) {
                 String identifier = field.getId();
                 if (!field.getScope().equalsIgnoreCase("global")) identifier = this.systemId + ":" + identifier;
@@ -135,8 +152,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
     public boolean isModified(String transactionId, String className, String uuid) {
         String actualHash = getHashByUuid(transactionId, className, uuid);
         try {
-            PreparedStatement ps = bindingDB.prepareStatement("SELECT hash FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND disabled=0");
+            PreparedStatement ps = bindingDB.prepareStatement("SELECT hash FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND disabled=0 AND source=?");
             ps.setString(1, uuid);
+            ps.setString(2, this.systemId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 return (!rs.getString("hash").equalsIgnoreCase(actualHash));
@@ -242,7 +260,10 @@ public abstract class DatasetAccessor extends BaseAccessor {
             HashMap<String, String> row = transform(data.get(i));
             String identifierValue = row.get("#" + identifierName);
             try {
-                PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE name=? AND id=? AND disabled=0");
+                PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE name=? AND id=? AND disabled=0 AND source=?");
+                ps.setString(1, identifierName);
+                ps.setString(2, identifierValue);
+                ps.setString(3, systemId);
                 if (!ps.executeQuery().next()) {
                     LOG.debug("Found unbinded record");
                     unbinded++;
@@ -302,13 +323,20 @@ public abstract class DatasetAccessor extends BaseAccessor {
             String value = "";
             if (!xmlData.containsKey(rowKey)) continue;         //skip
 
+            boolean skipable = false;
+            for (AccessorField f : schema.getSchemaFields()) {
+                if (this.getPath(f.getKey()).equalsIgnoreCase(rowKey)) {
+                    if (!f.getMatchIgnore().equalsIgnoreCase("false")) skipable = true;
+                }
+            }
+            if (skipable) continue;
             //todo: null conventions
 
             if (datasetRow.get(rowKey) == null) {
                 String defaultValue = null;
                 boolean found = false;
                 for (AccessorField f : schema.getSchemaFields()) {
-                    LOG.debug("Comparing " + this.getPath(f.getKey()) + " with " + rowKey);
+//                    LOG.debug("Comparing " + this.getPath(f.getKey()) + " with " + rowKey);
                     if (this.getPath(f.getKey()).equalsIgnoreCase(rowKey)) {
                         if (f.getDefault() != null) defaultValue = f.getDefault();
                         found = true;
@@ -357,7 +385,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         LOG.debug("Reverse replace");
         List<ReplaceJAXB> replaces = field.getReplaces();
         for (ReplaceJAXB replace : replaces) {
-            LOG.debug("Comparing " + value + " with " + replace.getTo());
+//            LOG.debug("Comparing " + value + " with " + replace.getTo());
             if (replace.getTo().equalsIgnoreCase(value)) {
                 return replace.getFrom();
             }
@@ -436,8 +464,9 @@ public abstract class DatasetAccessor extends BaseAccessor {
         }
 
         try {
-            PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND disabled=0");
+            PreparedStatement ps = bindingDB.prepareStatement("SELECT * FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND disabled=0 AND source=?");
             ps.setString(1, uuid);
+            ps.setString(2, systemId);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 String id = rs.getString("id");
@@ -456,15 +485,18 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
             ArrayList<HashMap<String, String>> data = this.getDataset(helper.getTransactionId(), className);
 
+            LOG.debug("*********************** COMPARING " + data.size() + " with " + newData);
+
             for (int i = 0; i < data.size(); i++) {
                 HashMap<String, String> row = data.get(i);
                 row = this.transform(row);
                 //searching for full match
+//                LOG.debug("Comparing "+row+" with "+newData);
                 if (this.equals(row, newData)) {
 
-                    for (String rowKey : row.keySet()) {
-                        LOG.debug("Row: " + rowKey + "=" + row.get(rowKey));
-                    }
+//                    for (String rowKey : row.keySet()) {
+//                        LOG.debug("Row: " + rowKey + "=" + row.get(rowKey));
+//                    }
 
                     LOG.debug("Found full match!");
                     String[] idents = identifiers.keySet().toArray(new String[0]);
@@ -472,11 +504,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     //bind with all identifiers
                     for (String identifierName : idents) {
                         String id = row.get("#" + identifierName);
-                        PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,name,id,disabled,actual,value,hash) VALUES (?,?,?,0,NOW(),'',?)");
+                        PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,name,id,disabled,actual,value,hash,source) VALUES (?,?,?,0,NOW(),'',?,?)");
                         uuidUpdate.setString(1, uuid);
                         uuidUpdate.setString(2, identifierName);
                         uuidUpdate.setString(3, id);
                         uuidUpdate.setString(4, hash);
+                        uuidUpdate.setString(5, systemId);
                         uuidUpdate.executeUpdate();
                     }
                     String id0 = idents[0];
@@ -506,11 +539,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
             //register bindings
             for (String key : keys.keySet()) {
                 String value = keys.get(key);
-                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,name,id,disabled,actual,value,hash) VALUES (?,?,?,0,NOW(),'',?)");
+                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,name,id,disabled,actual,value,hash,source) VALUES (?,?,?,0,NOW(),'',?,?)");
                 uuidUpdate.setString(1, uuid);
                 uuidUpdate.setString(2, key);
                 uuidUpdate.setString(3, value);
                 uuidUpdate.setString(4, "");        //todo: hash
+                uuidUpdate.setString(5, systemId);
                 uuidUpdate.executeUpdate();
             }
             return true;
@@ -519,6 +553,11 @@ public abstract class DatasetAccessor extends BaseAccessor {
             return false;
         }
     }
+
+    protected void updateUuid(String identifier, String identifierValue, String uuidvalue) {
+    }
+
+    ;
 
     /**
      * Translate local identifier to global uuid
@@ -532,15 +571,19 @@ public abstract class DatasetAccessor extends BaseAccessor {
     @Override
     public String getUuidByIdentifier(String transactionId, String className, String identifierName, String identifierValue, boolean forcedCreation) {
         try {
-            PreparedStatement st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0");
+            PreparedStatement st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0 AND source=?");
             LOG.info("Searching for " + identifierName + " = " + identifierValue);
             st.setString(1, identifierValue);
             st.setString(2, identifierName);
+            st.setString(3, systemId);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
                 //record exists
                 LOG.debug("Record exists");
-                return rs.getString("uuid");
+                String uuidValue = rs.getString("uuid");
+                LOG.debug(uuidValue);
+                updateUuid(identifierName, identifierValue, uuidValue);
+                return uuidValue;
             } else if (!forcedCreation) {
                 LOG.debug("Search by indirect ids");
                 //поиск совпадений с другими идентификаторами строки
@@ -554,20 +597,23 @@ public abstract class DatasetAccessor extends BaseAccessor {
                         if (!key.startsWith("#") || key.equalsIgnoreCase("#" + identifierName)) continue;
                         String name = key.substring(1);
                         String value = row.get(key);
-                        LOG.debug("Comparing with " + name + ":" + value);
+//                        LOG.debug("Comparing with " + name + ":" + value);
                         try {
-                            st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0");
+                            st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0 AND source=?");
                             st.setString(1, value);
                             st.setString(2, name);
+                            st.setString(3, systemId);
                             rs = st.executeQuery();
                             if (rs.next()) {
                                 LOG.debug("Found!!!");
                                 String uuid = rs.getString("uuid");
-                                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
+                                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value,source) VALUES (?,?,0,?,NOW(),'',?)");
                                 uuidUpdate.setString(1, uuid);
                                 uuidUpdate.setString(2, identifierValue);
                                 uuidUpdate.setString(3, identifierName);
+                                uuidUpdate.setString(4, systemId);
                                 uuidUpdate.executeUpdate();
+                                this.updateUuid(identifierName, identifierValue, uuid);
                                 return uuid;
                             }
                         } catch (SQLException se) {
@@ -613,11 +659,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
                                             String identifierFieldName = this.getPath(identifierField.getKey());
                                             String identifierFieldValue = row.get(identifierFieldName);
-                                            PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
+                                            PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value,source) VALUES (?,?,0,?,NOW(),'',?)");
                                             LOG.debug("Adding to " + uuidGlobal + " " + identifierNameOther + ":" + identifierFieldValue);
                                             uuidUpdate.setString(1, uuidGlobal);
                                             uuidUpdate.setString(2, identifierFieldValue);
                                             uuidUpdate.setString(3, identifierNameOther);
+                                            uuidUpdate.setString(4, systemId);
                                             uuidUpdate.executeUpdate();
                                         }
 
@@ -639,11 +686,13 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
                 String newUuid = UUID.randomUUID().toString();
                 LOG.info("Registering new record");
-                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value) VALUES (?,?,0,?,NOW(),'')");
+                PreparedStatement uuidUpdate = this.bindingDB.prepareStatement("INSERT INTO " + this.bindingPrefix + "_" + className + " (uuid,id,disabled,name,actual,value,source) VALUES (?,?,0,?,NOW(),'',?)");
                 uuidUpdate.setString(1, newUuid);
                 uuidUpdate.setString(2, identifierValue);
                 uuidUpdate.setString(3, identifierName);
+                uuidUpdate.setString(4, systemId);
                 uuidUpdate.executeUpdate();
+                this.updateUuid(identifierName, identifierValue, newUuid);
                 return newUuid;
             }
 
@@ -660,6 +709,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         String[] idents = identifiers.keySet().toArray(new String[0]);
         String id = this.getIdentifierByUuid(helper.getTransactionId(), className, idents[0], uuid);
         LOG.info("Resolved identifier: " + id);
+        if (id == null) return true;
         String identifierName = idents[0];
         HashMap<String, String> row = getRow(identifierName, id, true);
 
@@ -679,9 +729,10 @@ public abstract class DatasetAccessor extends BaseAccessor {
             //fill the object
             String hash = this.getHash(row);
             try {
-                PreparedStatement ps = bindingDB.prepareStatement("UPDATE " + bindingPrefix + "_" + className + " SET ACTUAL=NOW(),hash=? WHERE uuid=? AND disabled=0");
+                PreparedStatement ps = bindingDB.prepareStatement("UPDATE " + bindingPrefix + "_" + className + " SET ACTUAL=NOW(),hash=? WHERE uuid=? AND disabled=0 AND source=?");
                 ps.setString(1, hash);
                 ps.setString(2, uuid);
+                ps.setString(3, systemId);
                 ps.executeUpdate();
             } catch (SQLException e) {
                 LOG.error("SQL Exception (in get) " + e.getLocalizedMessage());
@@ -725,13 +776,15 @@ public abstract class DatasetAccessor extends BaseAccessor {
     public String getIdentifierByUuid(String transactionId, String className, String identifierName, String uuidValue) {
         LOG.debug("Identifying: " + transactionId + " class: " + className + " name: " + identifierName + " uuidValue: " + uuidValue);
         try {
-            String qr = "SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0";
+            String qr = "SELECT id FROM " + this.bindingPrefix + "_" + className + " WHERE uuid=? AND name=? AND disabled=0 AND source=?";
             LOG.debug(qr);
             PreparedStatement st = this.bindingDB.prepareStatement(qr);
             st.setString(1, uuidValue);
             st.setString(2, identifierName);
+            st.setString(3, systemId);
             ResultSet rs = st.executeQuery();
             if (rs.next()) {
+                this.updateUuid(identifierName, rs.getString("id"), uuidValue);
                 return rs.getString("id");
             }
         } catch (SQLException e) {

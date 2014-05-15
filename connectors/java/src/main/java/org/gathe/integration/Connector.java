@@ -51,6 +51,8 @@ public interface Connector extends Runnable {
 
     String identify(String className, String identifier, String uuid) throws JMSException;
 
+    String identify(String className, String identifier, String uuid, boolean isLocalRequest) throws JMSException;
+
     boolean check(String className, String identifier, String identifierValue, boolean isLocalRequest) throws JMSException;
 
     boolean check(String transactionId, String className, String identifier, String identifierValue, boolean async, boolean isLocalRequest) throws JMSException;

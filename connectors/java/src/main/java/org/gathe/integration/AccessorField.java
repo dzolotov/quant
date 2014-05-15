@@ -26,6 +26,8 @@ public abstract class AccessorField {
 
     public abstract String getId();
 
+    public abstract String getMatchIgnore();
+
     public abstract String getDefault();
 
     public abstract List<ReplaceJAXB> getReplaces();
