@@ -41,6 +41,7 @@ public class DBAccessor extends DatasetAccessor {
 
     private String schemaName;
     private PooledConnectionWrapper ds;
+    private Connection connection = null;
 //    ArrayList<HashMap<String, String>> data = new ArrayList<>();
 
     public DBAccessor(String systemId, String schemaName, PooledConnectionWrapper ds) {
@@ -90,9 +91,22 @@ public class DBAccessor extends DatasetAccessor {
     }*/
 
     private Connection getConnection() {
+	try {
+    	    if (connection!=null && !connection.isClosed()) return connection;
+	} catch (Exception e) {
+	    try {
+		    LOG.info("Reconnecting...");
+		    connection = ds.getPooledConnection().getConnection();
+		    return connection;
+	    } catch (SQLException e3) {
+		LOG.error("Exception when connecting: "+e3.getMessage());
+	    }
+	}
         try {
-            return ds.getPooledConnection().getConnection();
-        } catch (Exception e) {
+            connection = ds.getPooledConnection().getConnection();
+	    return connection;
+        } catch (Exception e2) {
+	    LOG.error("Exception when connecting: "+e2.getMessage());
             return null;
         }
 //        try {
@@ -149,10 +163,25 @@ public class DBAccessor extends DatasetAccessor {
         LOG.debug("Field name: " + fieldName);
         if (fieldName == null) return null;
         try {
-            String q = "SELECT * FROM " + tableName;
+
+	    String names = "";
+	    for (AccessorField field : schema.getSchemaFields()) {
+		String expression = ((DBFieldJAXB) field).getExpression();
+		if (field.isIdentifier()) continue;
+		String name = ((DBFieldJAXB) field).getName();
+		if (!names.isEmpty()) names+=",";
+		if (expression==null && name.indexOf(".")>=0) name = name+" AS "+name.replace(".","_");
+		if (expression!=null) name = expression+" AS "+name;
+		names+=name;
+	    }
+
+            String q = "SELECT "+tableName + "." + fieldName+","+names+" FROM " + tableName;
 
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-                q += " JOIN " + dbjoin.getWith() + " ON " + tableName + "." + dbjoin.getFrom() + "=" + dbjoin.getWith() + "." + dbjoin.getTo() + "";
+		if ("left".equalsIgnoreCase(dbjoin.getType())) q+=" LEFT";
+		String joinFrom = dbjoin.getFrom();
+   	        if (joinFrom.indexOf(".")<0) joinFrom = tableName+"."+joinFrom;
+                q += " JOIN " + dbjoin.getWith() + " ON " + joinFrom + "=" + dbjoin.getWith() + "." + dbjoin.getTo() + "";
             }
             q += " WHERE " + tableName + "." + fieldName + "=?";
 
@@ -169,6 +198,12 @@ public class DBAccessor extends DatasetAccessor {
 
                 String name = ((DBFieldJAXB) field).getName();
                 String path = this.getPath(name);
+		name = name.replace("[","");
+		name = name.replace("]","");
+		name = name.replace("`","");
+    	        name = name.replace("\"","");
+
+		name = name.replace(".","_");
                 if (name.startsWith("@")) {
                     String value = ((DBFieldJAXB) field).getValue();
                     if (value == null) continue;
@@ -228,6 +263,12 @@ public class DBAccessor extends DatasetAccessor {
                 for (AccessorField field : schema.getSchemaFields()) {
                     String name = ((DBFieldJAXB) field).getName();
                     String path = this.getPath(name);
+
+		    name = name.replace("[","");
+		    name = name.replace("]","");
+		    name = name.replace("`","");
+		    name = name.replace("\"","");
+
                     if (name.startsWith("@")) {
                         String value = ((DBFieldJAXB) field).getValue();
                         if (value == null) continue;

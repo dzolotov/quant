@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0px;
+    }
+</style>
+<script src="script.js" type="text/javascript"></script>
+<script>
+<!--
+
+var names;
+
+//animation scrip
+animationScript = [];
+colors = [];
+intervals = [];
+
+//animate states
+position = [];
+directions = [];
+
+//array of animation steps for transactions (in order of display)
+transactionsAnimation = [];
+//array of transaction ids
+transactionIds = [];
+//array of common action descriptors for animation steps (in order of display)
+commonActions = [];
+//arrays transactionsAnimation and commonActions is parallel
+//array of identifier for animation steps (in order of display)
+identifiers = [];
+
+next = -1;
+
+actions = [];
+var centerX;
+var centerY;
+var radius;
+var request;
+
+var panelWidth = 300;
+var panelHeight = 500;
+var panelMargin = 50;
+var panelX;
+var panelY;
+
+speed = 1;
+
+var ctx;
+
+function addAnimationElement(transactionId, commonAction, identifier, animation) {
+    if (animation.substring(animation.indexOf(":")+1).trim().length==0) {
+        console.log("Skip empty animation script");
+        return;
+    }
+    console.log("Add animation element: "+transactionId+", "+commonAction+", "+identifier+" animation: "+animation);
+
+    //search for active transaction!
+    //already transacting?
+    var transactionIndex = -1;
+    for (var i=0;i<transactionIds.length;i++) {
+        if (transactionIds[i][0]==transactionId.trim()) {
+            transactionIndex = i;
+            break;
+        }
+        for (var j=1;j<transactionIds[i].length;j++) {
+            if (transactionIds[i][j].trim()==transactionId.trim()) return;
+        }
+    }
+
+    if (transactionIndex>=0) {
+        console.log("Add step to trans");
+        //add new step to famous transaction
+        transactionsAnimation[transactionIndex].push(animation);
+        //if (transactionIndex == 0) {
+        //now animating!
+        //  animationScript.push(animation);
+        //}
+        return;
+    }
+
+    var actionIndex = commonActions.indexOf(commonAction);
+
+    if (actionIndex<0) {
+        console.log("New action");
+        first = false;
+        if (commonActions.length == 0) first = true;
+        commonActions.push(commonAction);
+        idents = [identifier];
+        identifiers.push(idents);
+        transs = [transactionId];
+        transactionIds.push(transs);
+        anims = [animation];
+        transactionsAnimation.push(anims);
+        if (first) {
+//start animation from the beginning
+            animationScript = anims;
+            drawPanel(commonAction, idents);
+            nextAnimationStep();
+        }
+    } else {
+        //new transaction for famous common action - add new identifier (if not found)
+        if (transactionIds[actionIndex].indexOf(transactionId) < 0) {
+            console.log("Add new identifier");
+            if (identifiers[actionIndex].indexOf(identifier)<0) {
+                identifiers[actionIndex].push(identifier);
+                transactionIds[actionIndex].push(transactionId);
+                if (actionIndex == 0) {
+                     //now animating! Update panel
+                     drawPanel(commonActions[actionIndex].identifiers[actionIndex]);
+                }
+            }
+        }
+    }
+}
+
+function nextAnimationStep() {
+
+    console.log("In animation step");
+    console.log("Common actions: "+commonActions.length);
+    console.log("AnimationScript: "+animationScript.length);
+    console.log("Next action: "+animationScript[0]);
+
+    if (commonActions.length==0) return;
+    console.log("Need more animation");
+
+    if (animationScript.length == 0) {
+        console.log("Skip to next animation");
+        //stepping to next animated transaction
+        commonActions.shift();
+        identifiers.shift();
+        transactionIds.shift();
+        transactionsAnimation.shift();
+        if (commonActions.length > 0) {
+            //update panel!
+            drawPanel(commonActions[0], identifiers[0]);
+            animationScript = transactionsAnimation[0];
+            nextAnimationStep();
+        }
+        return;
+    }
+
+    //prepare animation context
+    element = animationScript[0];
+    color = element.substring(0, element.indexOf(":"));
+    elementContent = element.substring(element.indexOf(":") + 1);
+    if (elementContent.trim().length != 0) {
+        elements = elementContent.split(",");
+        console.log(elements);
+        for (var i = 0; i < elements.length; i++) {
+            el = elements[i];
+            target = parseInt(el.substring(1));
+            if (el.trim().length == 0 || target < 0) continue;
+            direction = 1;
+            if (el.charAt(0) == '+') {
+                position[target] = 0;
+                directions[target] = 1;
+            } else {
+                position[target] = 1;
+                directions[target] = -1;
+            }
+            colors[target] = color;
+            intervals[target] = 1;
+            setTimeout("animate(" + target + ")", speed);
+        }
+    }
+}
+
+function drawPanel(action, idents) {
+    clearPanel();
+    fontSize = 12;
+    ctx.font = fontSize+"px sans";
+    panelPaddingX = 5;
+    panelPaddingY = 10;
+    textHeight = parseInt(fontSize*1.5);
+    panelLineSpacing = 2;
+    ctx.lineWidth = 1;
+    ctx.shadowBlur=0;
+    ctx.shadowColor="white";
+    actionSize = ctx.measureText(action);
+    wdt = actionSize.width;
+    if (wdt > panelWidth - 2 * panelPaddingX) wdt = panelWidth - 2 * panelPaddingX;
+    ctx.strokeText(action, panelX + ((panelWidth - wdt) >> 1), panelY + panelPaddingY, panelWidth - 2 * panelPaddingX);
+
+    ypos = panelY + panelPaddingY + textHeight + panelLineSpacing;
+    console.log("Idents: "+idents.length);
+    for (var j = 0; j < idents.length; j++) {
+        console.log("Ident"+j+" = "+idents[j]);
+        identifierSize = ctx.measureText(idents[j]);
+        console.log("Bottom line: "+ypos + identifierSize.height );
+
+        if (ypos + textHeight < panelY + panelHeight - panelPaddingY) {
+            ctx.strokeText(idents[j], panelPaddingX + panelX, ypos, panelWidth - 2 * panelPaddingX);
+            ypos = ypos + textHeight + panelLineSpacing;
+        }
+    }
+}
+
+function drawCloudAndRays() {
+
+    cloud = new Image();
+    cloud.src = "cloud.png";
+    cloud.onload = function () {
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.fillRect((window.innerWidth - cloud.width) >> 1, (window.innerHeight - cloud.height) >> 1, cloud.width, cloud.height);
+        ctx.drawImage(cloud, (window.innerWidth - cloud.width) >> 1, (window.innerHeight - cloud.height) >> 1);
+
+        count = names.length;
+        for (var i = 0; i < count; i++) {
+            ctx.beginPath();
+            ctx.moveTo(parseInt(points[i].x), parseInt(points[i].y));
+            ctx.lineTo(parseInt(centerX), parseInt(centerY));
+            ctx.lineWidth = 7;
+            if (names[i].charAt(0) == "+") {
+                ctx.strokeStyle = "#777777";
+            } else {
+                ctx.strokeStyle = "#FF0000";
+            }
+            ctx.stroke();
+        }
+    }
+    ctx.lineWidth = 1;
+}
+
+function startPlay() {
+    playScriptElement();
+}
+
+function animate(target) {
+    targetX = points[target].x;
+    targetY = points[target].y;
+    ctx.beginPath();
+    var center = position[target];
+    var grad = ctx.createLinearGradient(centerX, centerY, targetX, targetY);
+    grad.addColorStop(0, "#777777");
+    if (center >= 0.1) {
+        grad.addColorStop(center - 0.1, "#CCCCCC");
+        grad.addColorStop(center, colors[target]);
+    }
+    ;
+    if (center < 0.1) {
+        grad.addColorStop(center + 0.1, "#CCCCCC");
+    }
+    grad.addColorStop(1, "#777777");
+    ctx.strokeStyle = grad;
+    ctx.moveTo(targetX, targetY);
+    ctx.lineTo(centerX, centerY);
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    center = center + 0.02 * directions[target];
+    position[target] = center;
+//            console.log("Point "+target+" center: "+center+" direction: "+directions[target]);
+    if (center <= 0.01 || center >= 0.99) {
+        console.log("end");
+//                clearInterval(intervals[target]);
+        intervals[target] = 0;
+        ctx.beginPath();
+        ctx.strokeStyle = "#777777";
+        ctx.moveTo(targetX, targetY);
+        ctx.lineTo(centerX, centerY);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        var sum = 0;
+        for (var i = 0; i < intervals.length; i++) {
+            if (intervals[i] != undefined) sum += intervals[i];
+        }
+
+        if (sum == 0) {
+            animationScript.shift();			//shift current animation
+            if (animationScript.length == 0) {
+                setTimeout("nextAnimationStep()", 300);    //waiting for next action
+                return;
+            }
+            console.log("NEXT");
+            nextAnimationStep();
+        }
+    } else {
+        setTimeout("animate(" + target + ")", speed);
+    }
+    //console.log("here");
+}
+
+function openRequest() {
+    if (next == "") return;
+    request.open("GET", "/status/"+next, true);
+    console.log("open request to status " + next);
+    request.onreadystatechange = function () {
+        longpoll();
+    }
+    request.ontimeout = function () {
+        console.log("Timeout");
+        openRequest();
+    }
+    request.timeout = 60000;
+    request.send(null);
+
+}
+
+function processData(data) {
+    lines = data.split("\n");
+    console.log(data);
+    console.log(lines);
+    next = lines[0];
+    for (var i=1;i<lines.length;i++) {
+        data = lines[i];
+        if (data.substring(0, 10) == "endpoints:") {
+            str = data.substring(10);
+            names = str.split(",");
+            recalculateRays();
+            drawCloudAndRays();
+            drawEndpoints();
+        } else if (data.substring(0, 10) == "animation:") {
+            //syntax animation:transactionId:common.action:identifier:color:script
+            str = data.substring(10);
+            descriptionParts = str.split(":");
+            //descriptionParts[1] - transactionId
+            //descriptionParts[2] - common action
+            //descriptionParts[3] - identifier
+            //descriptionPArts[4]+":"+descriptionParts[5] - color:script
+            addAnimationElement(descriptionParts[0], descriptionParts[1], descriptionParts[2], descriptionParts[3] + ":" + descriptionParts[4]);
+        }
+    }
+    console.log("Data acquired " + data);
+}
+
+function longpoll() {
+    if (request.readyState == 4) {
+        result = request.responseText;
+        processData(result);
+        openRequest();
+    }
+}
+
+function recalculateRays() {
+    count = names.length;
+
+    for (var i = 0; i < count; i++) {
+        angle = 2 * Math.PI / count * i;
+        systemX = centerX + radius * Math.cos(angle);
+        systemY = centerY + radius * Math.sin(angle);
+
+        clipLeft = systemX - (systemWidth >> 1);
+        clipRight = systemX + (systemWidth >> 1);
+        clipTop = systemY - (systemHeight >> 1);
+        clipBottom = systemY + (systemHeight >> 1);
+
+        box = LiangBarsky(clipLeft, clipRight, clipTop, clipBottom, centerX, centerY, systemX, systemY);
+
+        if (box != false) {
+            points[i] = new Object();
+            points[i].x = box.lineLeft;
+            points[i].y = box.lineTop;
+        }
+    }
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, ctx.width, ctx.height);     //clear area
+}
+
+function drawEndpoints() {
+    count = names.length;
+
+    for (var i = 0; i < count; i++) {
+        angle = 2 * Math.PI / count * i;
+
+        systemX = centerX + radius * Math.cos(angle);
+        systemY = centerY + radius * Math.sin(angle);
+
+        title = names[i];
+        if (title.substring(0, 1) == "+") {
+            grad = ctx.createLinearGradient(systemX, systemY - (systemHeight >> 1), systemX, systemY + (systemHeight >> 1));
+            grad.addColorStop(0, "rgb(0,200,0)");
+            grad.addColorStop(0.2, "rgb(0,250,0)");
+            grad.addColorStop(1, "rgb(0,200,0)");
+            ctx.fillStyle = grad;
+            ctx.shadowColor = "green";
+
+        } else {
+            grad = ctx.createLinearGradient(systemX, systemY - (systemHeight >> 1), systemX, systemY + (systemHeight >> 1));
+            grad.addColorStop(0, "rgb(200,0,0)");
+            grad.addColorStop(0.2, "rgb(250,0,0)");
+            grad.addColorStop(1, "rgb(200,0,0)");
+            ctx.fillStyle = grad;
+            ctx.shadowColor = "red";
+        }
+        title = title.substring(1);
+
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.fillRect(systemX - (systemWidth >> 1), systemY - (systemHeight >> 1), systemWidth, systemHeight)
+        ctx.strokeStyle = "rgb(0,0,0)";
+        ctx.strokeRect(systemX - (systemWidth >> 1), systemY - (systemHeight >> 1), systemWidth, systemHeight);
+        ctx.font = "14px sans";
+        ctx.shadowColor = "white";
+        ctx.shadowBlur = 0;
+        titleWidth = ctx.measureText(title).width;
+        titleHeight = ctx.measureText(title).height;
+        if (titleWidth > systemWidth) titleWidth = systemWidth;
+        ctx.strokeText(title, systemX - (titleWidth >> 1), systemY - (titleHeight >> 1), systemWidth);
+    }
+}
+
+function clearPanel() {
+    ctx.fillStyle = "white";
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    ctx.strokeStyle = "rgb(0,0,0)";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "rgb(127,127,127)";
+    ctx.shadowBlur = 5;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    ctx.shadowColor = "white";
+    ctx.shadowBlur = 0;
+}
+
+function onload() {
+
+    radius = 230;
+
+    systemWidth = 100;
+    systemHeight = 40;
+
+    names = [];
+
+    points = [];
+
+    var dashboard = document.getElementById("dashboard");
+
+    ctx = dashboard.getContext("2d");
+    ctx.canvas.width = window.innerWidth;
+    ctx.canvas.height = window.innerHeight;
+
+    centerX = window.innerWidth >> 1;
+    centerY = window.innerHeight >> 1;
+
+    panelX = window.innerWidth - panelWidth - panelMargin;
+    panelY = (window.innerHeight - panelHeight) >> 1;
+
+    clearPanel();
+
+    request = createRequestObject();
+    openRequest();
+    initRequest = createRequestObject();
+    initRequest.open("GET", "/init", true);
+    initRequest.onreadystatechange = function () {
+    };
+    initRequest.send(null);
+}
+-->
+
+</script>
+<title></title>
+</head>
+<body onload="onload()">
+<canvas id="dashboard">
+    <span style="color:red">Your browser doesn't supported HTML5 Canvas</span>
+</canvas>
+</body>
+</html>

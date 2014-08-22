@@ -8,6 +8,7 @@ public class DBJoinJAXB {
     private String with;
     private String from;
     private String to;
+    private String type;
 
     @XmlAttribute(name = "with")
     public String getWith() {
@@ -34,5 +35,14 @@ public class DBJoinJAXB {
 
     public void setTo(String to) {
         this.to = to;
+    }
+
+    @XmlAttribute(name = "type")
+    public String getType() {
+	return type;
+    }
+
+    public void setType(String type) {
+	this.type = type;
     }
 }

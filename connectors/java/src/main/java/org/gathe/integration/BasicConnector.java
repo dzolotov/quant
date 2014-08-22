@@ -935,6 +935,9 @@ private boolean isDisconnected;
 
 
         public void run() {
+
+	    HashMap<String,String> chunks = new HashMap<>();
+
             while (!isDisconnected) {
                 try {
                     while (!activated) {
@@ -966,7 +969,33 @@ private boolean isDisconnected;
                     switch (action) {
                         case "update":
 
-                            String data = textMessage.getText();
+			    String messageId = textMessage.getStringProperty("messageId");
+			    LOG.debug("MessageID: "+messageId);
+			    LOG.debug("Number: "+textMessage.getStringProperty("number"));
+			    LOG.debug("Count: "+textMessage.getStringProperty("count"));
+
+                            int number = textMessage.getIntProperty("number");
+                            int count = textMessage.getIntProperty("count");
+                            if (!chunks.containsKey(messageId)) {
+                                chunks.put(messageId, "");
+                            }
+
+                            LOG.debug("Accepted " + number + "/" + count);
+                            chunks.put(messageId, chunks.get(messageId) + textMessage.getText());
+                            LOG.info("Chunk length for " + messageId + " is " + chunks.get(messageId).length());
+                            if (number < count - 1) {
+//                                    synchronized (semaphore) {
+//                                        this.semaphore = "3";
+//                                ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
+//                                        responseThreads.get(messageId).interrupt();
+//                                    }
+                                    textMessage.acknowledge();
+                                    continue;
+                                }
+                            LOG.info("Mission completed (for update)");
+                            String data = chunks.get(messageId);
+                            chunks.remove(messageId);
+
                             String transactionId = textMessage.getStringProperty("transactionId");
                             String uuid = textMessage.getStringProperty("uuid");
                             LOG.info("Updating " + uuid);
@@ -974,7 +1003,6 @@ private boolean isDisconnected;
                             updateHelper.transformFromXML(data);
                             //store patch
                             updatePatches.put(uuid, updateHelper.getPatch());
-
 
                             List<DataClass> allSchema = new ArrayList<>(schema.keySet());
                             //List<DataClass> schema = accessor.getSchema();        //todo: optimize!!!

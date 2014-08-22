@@ -125,12 +125,23 @@ class DBFieldJAXB extends AccessorField {
     String nullBehavior = "stay";
     String emptyBehavior = "stay";
     String matchIgnore = "false";
+
+    private String expression = null;
     private String name = null;
     private String type = "text";
     @XmlElement(name = "replace")
     private List<ReplaceJAXB> replaces;
     @XmlElement(name = "append")
     private List<AppendJAXB> appends;
+
+    @XmlAttribute(name = "expression")
+    public String getExpression() {
+	return expression;
+    }
+
+    public void setExpression(String expression) {
+	this.expression = expression;
+    }
 
     @XmlAttribute(name = "value")
     public String getValue() {

@@ -318,6 +318,7 @@ public class ReceiverThread extends Thread {
 
                     String[] actions = {"got", "identifyresponse", "matchresponse", "unifyresponse", "specifyresponse", "checkresponse", "hello"};
                     List<String> actionsList = Arrays.asList(actions);
+		    LOG.debug("Action is "+action);
                     if (actionsList.contains(action)) {
                         //merge chunks
                         int number = textMessage.getIntProperty("number");
@@ -354,6 +355,15 @@ public class ReceiverThread extends Thread {
                         textMessage.acknowledge();
                     }
 
+		    int number = 0;
+		    int count = 0;
+		    try {
+		        number = textMessage.getIntProperty("number");
+		        count = textMessage.getIntProperty("count");
+		    } catch (Exception e) {
+			e.printStackTrace();
+		    };
+
                     switch (action) {
 
                         case "hello":
@@ -383,6 +393,7 @@ public class ReceiverThread extends Thread {
 
                             LOG.info("Receiver: Request for '" + keyParts[0] + "' with class " + className + " and uuid " + objectUuid);
 
+
                             RequestThread th = null;
 
                             int from = endpointManager.getEndpointIndex(replyTo);
@@ -397,19 +408,19 @@ public class ReceiverThread extends Thread {
                             switch (action) {
                                 case "update":
                                     LOG.info("Receiver: Update notification " + className + " uuid: " + objectUuid + " Content: " + content);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), null);
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String,String>(), null, number, count);
                                     break;
 
                                 case "remove":
                                     LOG.info("Receiver: Remove notification " + className + " uuid: " + objectUuid + " Content: " + content);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), null);
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String,String>(), null, number, count);
                                     break;
 
                                 case "get":
                                     //add animation for get
 
                                     LOG.info("Receiver: Requesting class " + className + " uuid: " + objectUuid);
-                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new GetResponseThread(transactionId, messageId, className));
+                                    th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String,String>(), new GetResponseThread(transactionId, messageId, className), number, count);
                             }
 
                             if (th != null) {
@@ -436,7 +447,7 @@ public class ReceiverThread extends Thread {
                                 from = endpointManager.getEndpointIndex(replyTo);
                                 endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from);
                                 LOG.info("Receiver: Identify request for " + keyParts[1] + " " + uuid);
-                                th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new IdentifyResponseThread(transactionId, messageId));
+                                th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String,String>(), new IdentifyResponseThread(transactionId, messageId), number, count);
                                 th.start();
                             } else {
                                 TextMessage identifyResponse = session.createTextMessage();
@@ -464,7 +475,7 @@ public class ReceiverThread extends Thread {
                                 from = endpointManager.getEndpointIndex(replyTo);
                                 endpointManager.sendAnimation(transactionId, routingKey, headers_id, colors.get(keyParts[0]), "-" + from); //get request
                                 LOG.info("Receiver: Unify request for " + keyParts[1] + " " + headers_id);
-                                th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<>(), new UnifyResponseThread(transactionId, messageId));
+                                th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<String,String>(), new UnifyResponseThread(transactionId, messageId), number, count);
                                 th.start();
                             } else {
                                 TextMessage unifyResponse = session.createTextMessage();
@@ -481,7 +492,7 @@ public class ReceiverThread extends Thread {
                             from = endpointManager.getEndpointIndex(replyTo);
                             endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from); //get request
                             LOG.info("Receiver: Specifing class " + keyParts[1] + " uuid: " + uuid);
-                            th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<>(), new SpecifyResponseThread(transactionId, messageId, keyParts[1]));
+                            th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String,String>(), new SpecifyResponseThread(transactionId, messageId, keyParts[1]), number, count);
                             th.start();
                             break;
                         case "matchall":
@@ -502,7 +513,7 @@ public class ReceiverThread extends Thread {
                             filterData.put("mode", "seek");
                             filterData.put("explain", "false");
                             LOG.debug("Filterdata: " + filterData);
-                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new MatchResponseThread(transactionId, messageId));
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, "match." + keyParts[1], content, filterData, new MatchResponseThread(transactionId, messageId), number, count);
                             th.start();
                             break;
 
@@ -517,7 +528,7 @@ public class ReceiverThread extends Thread {
                             from = endpointManager.getEndpointIndex(replyTo);
                             endpointManager.sendAnimation(transactionId, routingKey, headers_id, colors.get(keyParts[0]), "-" + from); //get request
                             LOG.info("Receiver: Check request for " + keyParts[1] + " " + headers_id);
-                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<>(), new CheckResponseThread(transactionId, messageId));
+                            th = new RequestThread(transactionId, messageId, headers_id, replyTo, routingKey, content, new HashMap<String,String>(), new CheckResponseThread(transactionId, messageId), number, count);
                             th.start();
                             break;
 
@@ -909,13 +920,15 @@ public class ReceiverThread extends Thread {
         protected ResponseThread responseThread;
         protected HashMap<String, String> headers;
         protected String overridedClasses = null;
+	protected int number;
+	protected int count;
 
         protected ArrayList<RequestThread> chainThreads = new ArrayList<>();
 
         protected String originalRoutingKey;
         protected String originalClassName;
 
-        public RequestThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, HashMap<String, String> headers, ResponseThread responseThread) {
+        public RequestThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, HashMap<String, String> headers, ResponseThread responseThread, int number, int count) {
             this.identifier = identifier;
             this.messageId = messageId;
             this.transactionId = transactionId;
@@ -928,17 +941,21 @@ public class ReceiverThread extends Thread {
             this.content = content;
             this.headers = headers;
             this.responseThread = responseThread;
+	    this.number = number;
+	    this.count = count;
             LOG.info(action + " Thread initialized");
         }
 
         @Override
         public void run() {
             try {
-                LOG.info("Run thread for " + action + ", " + className + ", " + identifier + " (replyTo: " + replyTo + ", messageId: " + messageId + ", routingKey:" + routingKey);
+                LOG.info("Run thread for " + action + ", " + className + ", " + identifier + " (replyTo: " + replyTo + ", messageId: " + messageId + ", routingKey:" + routingKey+" # ("+number+"/"+count+")");
 
                 TextMessage request = session.createTextMessage();
                 request.setStringProperty("messageId", messageId);
                 request.setStringProperty("transactionId", transactionId);
+		request.setIntProperty("number",number);
+		request.setIntProperty("count",count);
                 request.setStringProperty((uuidCommands.contains(action.toLowerCase()) ? "uuid" : "id"), identifier);
 
                 for (String headerName : this.headers.keySet()) {
@@ -985,6 +1002,7 @@ public class ReceiverThread extends Thread {
 
                     case "update":
                         endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToUpdateEndpoints(className));
+			LOG.info("Updating chunk: "+number+" from "+count);
                         sendToProducer(request);
                         return;
 
@@ -996,7 +1014,7 @@ public class ReceiverThread extends Thread {
                         for (String identifierName : as) {
                             String getIdsMessageId = UUID.randomUUID().toString();
                             String getIdsRoutingKey = "identify." + identifierName;
-                            Thread th = new RequestThread(transactionId, getIdsMessageId, identifier, getIdsReplyTo, getIdsRoutingKey, content, new HashMap<>(), new IdentifyResponseThread(transactionId, getIdsMessageId));
+                            Thread th = new RequestThread(transactionId, getIdsMessageId, identifier, getIdsReplyTo, getIdsRoutingKey, content, new HashMap<String,String>(), new IdentifyResponseThread(transactionId, getIdsMessageId), number, count);
                             th.start();
                             th.join();
 
@@ -1037,7 +1055,7 @@ public class ReceiverThread extends Thread {
     class SpecifyThread extends RequestThread {
 
         public SpecifyThread(String transactionId, String messageId, String identifier, String replyTo, String routingKey, String content, ResponseThread responseThread) {
-            super(transactionId, messageId, identifier, replyTo, routingKey, content, new HashMap<>(), responseThread);
+            super(transactionId, messageId, identifier, replyTo, routingKey, content, new HashMap<String,String>(), responseThread, 0, 0);
         }
 
         public void run() {
@@ -1056,7 +1074,7 @@ public class ReceiverThread extends Thread {
                 // replyTo is null
 
 
-                Thread th = new RequestThread(transactionId, specifyMessageId, identifier, specifyReplyTo, specifyRoutingKey, content, new HashMap<>(), new SpecifyResponseThread(transactionId, specifyMessageId, clName));
+                Thread th = new RequestThread(transactionId, specifyMessageId, identifier, specifyReplyTo, specifyRoutingKey, content, new HashMap<String,String>(), new SpecifyResponseThread(transactionId, specifyMessageId, clName), 0, 0);
                 th.start();
                 try {
                     th.join();
