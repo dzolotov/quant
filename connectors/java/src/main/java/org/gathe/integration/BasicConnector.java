@@ -1067,7 +1067,7 @@ public class BasicConnector extends Thread implements Connector {
                             updatePatches.remove(uuid);
                             if (!error) {
                                 textMessage.acknowledge();
-                            };
+                            }
                             break;
 
                         case "remove":
