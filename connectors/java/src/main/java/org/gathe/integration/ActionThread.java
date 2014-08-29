@@ -30,7 +30,6 @@ public class ActionThread extends Thread {
     private boolean flags;
     private Connector connector;
     private org.apache.qpid.amqp_1_0.jms.TextMessage textMessage;
-//    private boolean first = true;
 
     public ActionThread(String action, Connector connector, org.apache.qpid.amqp_1_0.jms.TextMessage tm, int timeout) {
         this.timeout = timeout;
@@ -56,20 +55,19 @@ public class ActionThread extends Thread {
 
     public void run() {
         try {
-            LOG.info("Thread reloaded");
+            LOG.debug("Thread reloaded");
             accepted = false;
             this.flags = true;
 //            if (first) {
             try {
-                LOG.info("Sending message");
+                LOG.debug("Sending message");
                 connector.sendToUno(textMessage, "");
-                LOG.info("Message sent");
             } catch (JMSException e) {
             }
 //            }
 //            first = false;
             while (this.flags) {
-                LOG.info("Sleeping for " + timeout + " seconds");
+                LOG.debug("Sleeping for " + timeout + " seconds");
                 this.flags = false;
                 Thread.sleep(timeout * 1000);
             }

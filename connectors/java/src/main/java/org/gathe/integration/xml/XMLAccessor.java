@@ -52,7 +52,7 @@ public class XMLAccessor extends DatasetAccessor {
 
     @Override
     public List<DataClass> getSchema() {
-        LOG.info("Extracting schema");
+        LOG.info("Extracting schema...");
         return this.getClassSchema(((XMLSchemaJAXB) schema).getDataClass());
     }
 

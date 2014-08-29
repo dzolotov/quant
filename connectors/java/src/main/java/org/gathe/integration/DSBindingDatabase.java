@@ -58,7 +58,6 @@ public class DSBindingDatabase {
             st.executeUpdate(query);
             connection.commit();
         } catch (Exception e) {
-//                    e.printStackTrace();
         }
         return connection;
     }

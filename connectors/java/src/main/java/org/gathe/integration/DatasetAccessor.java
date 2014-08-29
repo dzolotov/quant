@@ -94,7 +94,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
         DataClass dc = new DataClass(dataClass);
         dc.setMatchable(true);
         for (AccessorField field : schema.getSchemaFields()) {
-//            LOG.info("Extracting " + field.getId() + ":" + field.getPath() + ":" + field.getDescription());
             if (field.isIdentifier()) {
                 String identifier = field.getId();
                 if (!field.getScope().equalsIgnoreCase("global")) identifier = this.systemId + ":" + identifier;
@@ -182,19 +181,12 @@ public abstract class DatasetAccessor extends BaseAccessor {
      */
     public HashMap<String, String> transform(HashMap<String, String> row) {
 
-//        LOG.debug(row);
         for (String path : row.keySet()) {
-//            LOG.debug("Row data: " + key + " " + row.get(key));
-            //if (key.startsWith("#")) continue;      //don't skip identifier
             List<AccessorField> fields = schema.getSchemaFields();
             for (AccessorField field : fields) {
 
-//                LOG.debug("Checking field " + field);
-
                 boolean matchedField = false;
                 if (field.isIdentifier()) {
-//                    LOG.debug("Field is "+field);
-//                    LOG.debug("Comparing "+field.getId()+" with "+path);
                     matchedField = (field.getId().equalsIgnoreCase(path.substring(1)));
                 } else {
                     matchedField = (field.getPath().equalsIgnoreCase(path));
@@ -204,9 +196,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     List<ReplaceJAXB> replaces = field.getReplaces();
                     if (replaces != null) {
                         for (ReplaceJAXB replaceRule : replaces) {
-                            //LOG.debug("RP: Comparing "+replaceRule.getFrom()+" with "+row.get(path));
                             if (replaceRule.getFrom().trim().equalsIgnoreCase(row.get(path).trim())) {
-//                            LOG.debug("Matched - replace with "+replaceRule.getTo());
                                 row.put(path, replaceRule.getTo().trim());
                                 break;
                             }
@@ -216,7 +206,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                     if (appends != null) {
                         for (AppendJAXB appendRule : appends) {
                             LOG.debug("Applying append rule: " + appendRule);
-//                            if (appendRule.getName().equalsIgnoreCase(row.get(key))) {
                             //check for attributes
 
                             if (appendRule.getPath() != null) {
@@ -226,8 +215,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                             } else if (appendRule.getValue() != null) {
                                 row.put(path, row.get(path) + appendRule.getValue());
                             }
-
-//                            }
                         }
                     }
                 }
@@ -250,7 +237,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
     public String countMatches(String transactionId, String className, HashMap<String, String> filters) {
         String[] idents = identifiers.keySet().toArray(new String[0]);
         String identifierName = idents[0];
-        LOG.info("Identifier: " + identifierName);
+        LOG.debug("Identifier: " + identifierName);
         ArrayList<String> uuids = new ArrayList<>();
         ArrayList<HashMap<String, String>> data = this.getDataset(transactionId, className);
         //todo: apply filters
@@ -290,7 +277,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         //data[identifier] -> uuid
         String[] idents = identifiers.keySet().toArray(new String[0]);
         String identifierName = idents[0];
-        LOG.info("Identifier: " + identifierName);
+        LOG.debug("Identifier: " + identifierName);
         ArrayList<String> uuids = new ArrayList<>();
         ArrayList<HashMap<String, String>> data = this.getDataset(transactionId, className);
         for (int i = 0; i < data.size(); i++) {
@@ -336,7 +323,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 String defaultValue = null;
                 boolean found = false;
                 for (AccessorField f : schema.getSchemaFields()) {
-//                    LOG.debug("Comparing " + this.getPath(f.getKey()) + " with " + rowKey);
                     if (this.getPath(f.getKey()).equalsIgnoreCase(rowKey)) {
                         if (f.getDefault() != null) defaultValue = f.getDefault();
                         found = true;
@@ -347,11 +333,8 @@ public abstract class DatasetAccessor extends BaseAccessor {
             } else {
                 value = datasetRow.get(rowKey);
             }
-//            LOG.debug("Comparing "+value+" with "+rowData)
             //todo: check scope
-//            if (rowData.containsKey(rowKey)) {
             if (!xmlData.get(rowKey).trim().equalsIgnoreCase(value.trim())) return false;
-//            }
         }
         return true;
     }
@@ -385,7 +368,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
         LOG.debug("Reverse replace");
         List<ReplaceJAXB> replaces = field.getReplaces();
         for (ReplaceJAXB replace : replaces) {
-//            LOG.debug("Comparing " + value + " with " + replace.getTo());
             if (replace.getTo().equalsIgnoreCase(value)) {
                 return replace.getFrom();
             }
@@ -395,7 +377,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
 
     private void fillDefaultValues(HashMap<String, String> newData, boolean update) {
-        LOG.info("Filling default values");
+        LOG.debug("Filling default values");
         //set default value (when update)
         for (AccessorField field : schema.getSchemaFields()) {
             String path = this.getPath(field.getKey());
@@ -440,7 +422,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
         for (String key : newData.keySet()) {
             LOG.debug("Old value for " + key + " is " + newData.get(key));
             for (AccessorField field : schema.getSchemaFields()) {
-//                LOG.debug("FK: "+field+" Key: "+field.getKey());
                 String path = this.getPath(field.getKey());
                 if (!path.equalsIgnoreCase(key)) continue;
                 if (field.getRef() != null) {
@@ -491,12 +472,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 HashMap<String, String> row = data.get(i);
                 row = this.transform(row);
                 //searching for full match
-//                LOG.debug("Comparing "+row+" with "+newData);
                 if (this.equals(row, newData)) {
-
-//                    for (String rowKey : row.keySet()) {
-//                        LOG.debug("Row: " + rowKey + "=" + row.get(rowKey));
-//                    }
 
                     LOG.debug("Found full match!");
                     String[] idents = identifiers.keySet().toArray(new String[0]);
@@ -557,8 +533,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
     protected void updateUuid(String identifier, String identifierValue, String uuidvalue) {
     }
 
-    ;
-
     /**
      * Translate local identifier to global uuid
      *
@@ -597,7 +571,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                         if (!key.startsWith("#") || key.equalsIgnoreCase("#" + identifierName)) continue;
                         String name = key.substring(1);
                         String value = row.get(key);
-//                        LOG.debug("Comparing with " + name + ":" + value);
                         try {
                             st = this.bindingDB.prepareStatement("SELECT uuid FROM " + this.bindingPrefix + "_" + className + " WHERE id=? AND name=? AND disabled=0 AND source=?");
                             st.setString(1, value);
@@ -629,11 +602,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                         LOG.debug("Getting row: " + identifierName + "=" + identifierValue);
                         row = this.getRow(identifierName, identifierValue, true);
                         LOG.debug("Row is " + row);
-//                    for (int i = 0; i < data.size(); i++) {
-//                        HashMap<String, String> row = data.get(i);
-                        //search for identifier
-//                        if (!row.containsKey("#" + identifierName) || !row.get("#" + identifierName).equalsIgnoreCase(identifierValue))
-//                            continue;
                         for (AccessorField field : schema.getSchemaFields()) {
                             if (field.isIdentifier() && field.getScope().equalsIgnoreCase("global")) {
                                 LOG.info("Searching in outer world for " + field.getId());
@@ -645,7 +613,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                                     uuidGlobal = connector.unify(transactionId, className, identifier, row.get("#" + identifier), false, false);
                                 } catch (JMSException e) {
                                 }
-                                LOG.info("Found in global scope: " + uuidGlobal);
+                                LOG.debug("Found in global scope: " + uuidGlobal);
                                 if (uuidGlobal != null) {
                                     //object found in outer world!
 
@@ -680,7 +648,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 }
             } else {
 
-//                    }
                 LOG.info("Object not found!!!!");
                 //todo: binding via match
 
@@ -708,7 +675,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
         //todo: check identifiers
         String[] idents = identifiers.keySet().toArray(new String[0]);
         String id = this.getIdentifierByUuid(helper.getTransactionId(), className, idents[0], uuid);
-        LOG.info("Resolved identifier: " + id);
+        LOG.debug("Resolved identifier: " + id);
         if (id == null) return true;
         String identifierName = idents[0];
         HashMap<String, String> row = getRow(identifierName, id, true);
@@ -723,9 +690,6 @@ public abstract class DatasetAccessor extends BaseAccessor {
 
         if (row == null) return true;
         else {
-//        for (int i = 0; i < data.size(); i++) {
-//            HashMap<String, String> row = data.get(i);
-//            if (row.containsKey("#" + identifierName) && row.get("#" + identifierName).equalsIgnoreCase(id)) {
             //fill the object
             String hash = this.getHash(row);
             try {
@@ -758,9 +722,7 @@ public abstract class DatasetAccessor extends BaseAccessor {
                 }
             }
             return true;
-//            }
         }
-//        return false;
     }
 
     /**
@@ -794,9 +756,4 @@ public abstract class DatasetAccessor extends BaseAccessor {
     }
 
     public abstract boolean checkByIdentifier(String transactionId, String className, String identifierName, String identifierValue);
-
-/*
-        //todo: optimize
-    }
-*/
 }

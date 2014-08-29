@@ -65,14 +65,14 @@ public class BasicConnector extends Thread implements Connector {
     private ConcurrentHashMap<String, String> getResponse = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, Thread> responseThreads = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, HashMap<String, String>> updatePatches = new ConcurrentHashMap<>();
-//    List<DataClass> schema = new ArrayList<>();
-private boolean isDisconnected;
+    //    List<DataClass> schema = new ArrayList<>();
+    private boolean isDisconnected;
 
     public BasicConnector(String id, boolean readOnly) throws ClassNotFoundException, NamingException, JMSException {
         this.id = id;
 
         this.readOnly = readOnly;
-        connectESB(readOnly);
+        connectESB();
 
         if (!readOnly) {
             Thread modificationThread = new ModificationThread();
@@ -96,7 +96,8 @@ private boolean isDisconnected;
     }
 
     @Override
-    public void connectESB(boolean readOnly) throws JMSException {
+    public void connectESB() throws JMSException {
+        LOG.debug("Connecting to ESB");
         System.setProperty("max_prefetch", "1");
         try {
             Class.forName("org.apache.qpid.amqp_1_0.jms.jndi.PropertiesFileInitialContextFactory");
@@ -109,24 +110,31 @@ private boolean isDisconnected;
             org.apache.qpid.amqp_1_0.jms.Connection connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
             connection.setClientID(id);
             connection.start();
-            session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);    //???
+            session = connection.createSession(Session.AcknowledgeMode.CLIENT_ACKNOWLEDGE);    //???
+            session.recover();
+            LOG.debug("Connected to session");
 
             org.apache.qpid.amqp_1_0.jms.Queue inbound = (Queue) context.lookup("inbound");
             consumer = session.createConsumer(inbound);
-//        ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) consumer).setMaxPrefetch(1);
+            ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) consumer).setMaxPrefetch(1);
+            LOG.debug("Connected to consumer queue");
 
             if (!readOnly) {
                 org.apache.qpid.amqp_1_0.jms.Queue modificationQueue = (Queue) context.lookup("modification");
                 modification = session.createConsumer(modificationQueue);
+                ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) modification).setMaxPrefetch(1);
+                LOG.debug("Connected to modification queue");
             }
-//        ((org.apache.qpid.amqp_1_0.jms.impl.MessageConsumerImpl) modification).setMaxPrefetch(1);
 
             org.apache.qpid.amqp_1_0.jms.Queue selfQueue = (Queue) context.lookup("endpoints");
             selfProducer = session.createProducer(selfQueue);
+            LOG.debug("Connected to selfproducer queue");
 
             org.apache.qpid.amqp_1_0.jms.Queue outbound = (Queue) context.lookup("uno");
             uno = session.createProducer(outbound);
+            LOG.debug("Connected to outbound queue");
             uno.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+
         } catch (ClassNotFoundException | NamingException e) {
             e.printStackTrace();
         }
@@ -161,7 +169,7 @@ private boolean isDisconnected;
                 textMessage = null;
             } catch (JMSException e) {
                 try {
-                    connectESB(this.readOnly);
+                    connectESB();
                     textMessage.setIntProperty("number", number);
                     textMessage.setIntProperty("count", count);
                     textMessage.setText(chunk);
@@ -200,16 +208,19 @@ private boolean isDisconnected;
             }
             int maxLimit = (number + 1) * chunkSize;
             if (maxLimit > content.length()) maxLimit = content.length();
-            LOG.info("Sending chunk " + number + "/" + count + " Subject: " + subject + " Length: " + (maxLimit - (number * chunkSize)));
+            LOG.debug("Sending chunk " + number + "/" + count + " Subject: " + subject + " Length: " + (maxLimit - (number * chunkSize)));
             sendChunk(tm, content.substring(number * chunkSize, maxLimit), number, count);
             tm = null;
         }
-        LOG.info("Message sent");
+        LOG.debug("Message sent");
     }
 
     //aux method - send text message to dispatcher with specified subject and content
     public void sendTextMessage(String subject, String content) throws JMSException {
         TextMessage textMessage = this.session.createTextMessage();
+        textMessage.setStringProperty("messageId", UUID.randomUUID().toString());
+        textMessage.setStringProperty("transactionId", UUID.randomUUID().toString());
+        textMessage.setReplyTo(this.id);
         LOG.info("Sending message with subject " + subject + " and content " + content);
         textMessage.setSubject(subject);
         sendToUno(textMessage, content);
@@ -228,13 +239,13 @@ private boolean isDisconnected;
         for (DataClass schemaClass : schemaDescription) {
 
             String schemaKey = schemaClass.getClassName();
-            LOG.info("Parsing schema: " + schemaKey);
+            LOG.debug("Parsing schema: " + schemaKey);
 
             Element classElement = schema.createElement("class");
             classElement.setAttribute("id", schemaKey);
             if (schemaClass.getExtendClassName() != null) {
                 classElement.setAttribute("extends", schemaClass.getExtendClassName());
-                LOG.info("Extends: " + schemaClass.getExtendClassName());
+                LOG.debug("Extends: " + schemaClass.getExtendClassName());
             }
             if (schemaClass.isMatchable()) classElement.setAttribute("matchable", "true");
             if (schemaClass.isReadOnly()) classElement.setAttribute("readonly", "true");
@@ -336,7 +347,6 @@ private boolean isDisconnected;
         }
         if (stored) selfTransactions.remove(transactionId + ":" + className);
         return result;
-//        return this.doAction("identify", transactionId, className, identifierValue, identifier, async);
     }
 
     @Override
@@ -630,10 +640,6 @@ private boolean isDisconnected;
             responseThreads.remove(messageId);
             return result;
         }
-//        } else {
-//            responseThreads.put(messageId, null);
-//            return messageId;
-//        }
         return "";
     }
 
@@ -668,26 +674,12 @@ private boolean isDisconnected;
 
             while (!isDisconnected) {
                 try {
-//                    LOG.debug("Waiting for message");
                     Object message = null;
-//                    try {
                     if (activated) {
                         message = consumer.receive(50);
                     } else {
                         message = consumer.receive(100);
                     }
-//                    } catch (JMSException e) {
-//                        try {
-//                            connect();
-//                            if (activated) {
-//                                message = consumer.receive();
-//                            } else {
-//                                message = consumer.receive(100);
-//                            }
-//                        } catch (JMSException e2) {
-//                            LOG.error("Twin error "+e.getLocalizedMessage());
-//                        }
-//                    }
 
                     if (message == null && !activated) {
                         if (checkForEchoResponse) {
@@ -704,10 +696,10 @@ private boolean isDisconnected;
                             selfProducer.send(echoMessage);
                         }
 
-                        LOG.info("Sleep to let our doppelgänger retrieve echo message");
+                        LOG.debug("Sleep to let our doppelgänger retrieve echo message");
 
                         Thread.sleep(500);
-                        LOG.info("Wake up to check echo message presence");
+                        LOG.debug("Wake up to check echo message presence");
                         checkForEchoResponse = true;
                         continue;
                     }
@@ -729,7 +721,7 @@ private boolean isDisconnected;
                         textMessage.acknowledge();
                         continue;
                     }
-                    LOG.info("Arrived message " + textMessage.getSubject());
+                    LOG.debug("Arrived message " + textMessage.getSubject());
                     String keyParts[] = textMessage.getSubject().split("\\.");
                     String action = keyParts[0].toLowerCase();
                     if (!activated) {
@@ -737,6 +729,7 @@ private boolean isDisconnected;
                         continue;
                     }
 
+                    LOG.info("Action: "+action);
                     switch (action) {
                         case "discover":
                             sendTextMessage("hello." + this.id, resultString.toString());
@@ -750,8 +743,8 @@ private boolean isDisconnected;
                             sendToUno(pingResponse, "");
                             textMessage.acknowledge();
                             break;
-                        case "get":
 
+                        case "get":
                             String className = keyParts[1];
                             String uuid = textMessage.getStringProperty("uuid");
                             String target = textMessage.getStringProperty("target");
@@ -789,7 +782,6 @@ private boolean isDisconnected;
                             break;
 
                         case "specify":
-
                             LOG.debug("Request for specify");
 
                             String generalClassName = keyParts[1];
@@ -804,7 +796,7 @@ private boolean isDisconnected;
                             className = keyParts[1];
                             String data = textMessage.getText();
                             uuid = textMessage.getStringProperty("uuid");
-                            LOG.info("Validating " + uuid);
+                            LOG.debug("Validating " + uuid);
                             new ValidateThread(textMessage, className, uuid, data).start();
                             textMessage.acknowledge();
                             break;
@@ -834,16 +826,12 @@ private boolean isDisconnected;
                         default:
                             if (keyParts[0].equalsIgnoreCase(id)) {
 
-                                LOG.info("Accepted direct message");
+                                LOG.debug("Accepted direct message");
                                 String messageId = textMessage.getStringProperty("messageId");
-                                LOG.info("MessageID: " + messageId);
+                                LOG.debug("MessageID: " + messageId);
                                 if (textMessage.getStringProperty("waiting") != null) {
-                                    LOG.info("Waiting notify");
-//                                    synchronized (semaphore) {
-//                                        this.semaphore = "5";
+                                    LOG.debug("Waiting notify");
                                     ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
-//                                        responseThreads.get(messageId).interrupt();
-//                                    }
                                     textMessage.acknowledge();
                                     continue;
                                 }
@@ -860,53 +848,53 @@ private boolean isDisconnected;
 
                                 LOG.debug("Accepted " + number + "/" + count);
                                 chunks.put(messageId, chunks.get(messageId) + textMessage.getText());
-                                LOG.info("Chunk length for " + messageId + " is " + chunks.get(messageId).length());
+                                LOG.debug("Chunk length for " + messageId + " is " + chunks.get(messageId).length());
                                 if (number < count - 1) {
-//                                    synchronized (semaphore) {
-//                                        this.semaphore = "3";
                                     ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
-//                                        responseThreads.get(messageId).interrupt();
-//                                    }
                                     textMessage.acknowledge();
                                     continue;
                                 }
-                                LOG.info("Mission completed");
+                                LOG.debug("Mission completed");
                                 String content = chunks.get(messageId);
                                 chunks.remove(messageId);
 
                                 if (responseThreads.containsKey(messageId)) {
                                     if (responseThreads.get(messageId) != null) {
-//                                        synchronized (semaphore) {
-//                                            this.semaphore = "4";
                                         getResponse.put(messageId, content);
                                         ((ActionThread) (responseThreads.get(messageId))).needContinue(false);
                                         LOG.debug("Terminating thread " + responseThreads.get(messageId));
                                         responseThreads.get(messageId).interrupt();
-//                                        }
                                     }
                                 }
                             }
                             textMessage.acknowledge();
                     }
                 } catch (javax.jms.IllegalStateException e) {
-                    LOG.debug("Connection lost");
+                    LOG.error("Connection lost");
                     break;
                 } catch (Exception e) {
-                    LOG.debug("Error in connector main message loop");
-                    e.printStackTrace();
+                    boolean connected = false;
+                    while (!connected) {
+                        try {
+                            LOG.debug("Error in connector main message loop. Trying to recover connection.");
+                            Thread.sleep(2000);
+                            connected = true;
+                            connectESB();
+                        } catch (JMSException e2) {
+                            connected = false;
+                        }
+                    }
+                    //try to reconnect
                 }
             }
         } catch (Exception e) {
             LOG.debug("Error in connector pre-main message loop");
             e.printStackTrace();
         }
-        //send bye
     }
 
     protected Accessor getAccessor(String className) {
-//        LOG.info("Getting accessor from " + schema.keySet().size());
         for (DataClass dc : schema.keySet()) {
-//            LOG.info("Iterating: " + dc + " classname: " + dc.getClassName() + " with " + className);
             if (dc.getClassName().equalsIgnoreCase(className)) return schema.get(dc);
         }
         return null;
@@ -936,7 +924,7 @@ private boolean isDisconnected;
 
         public void run() {
 
-	    HashMap<String,String> chunks = new HashMap<>();
+            HashMap<String, String> chunks = new HashMap<>();
 
             while (!isDisconnected) {
                 try {
@@ -947,32 +935,20 @@ private boolean isDisconnected;
                         } catch (Exception e) {
                         }
                     }
-//                    LOG.debug("Waiting for modification message");
                     Object message = null;
-//                    try {
                     message = modification.receive();
-/*
-                    } catch (JMSException e) {
-                        try {
-                            connect();
-                            message = modification.receive();
-                        } catch (JMSException e2) {
-                            LOG.error("Twin error "+e2.getLocalizedMessage());
-                        }
-                    }
-*/
                     if (!(message instanceof TextMessage)) continue;    //skip empty
                     TextMessage textMessage = (TextMessage) message;
-                    LOG.info("Arrived modification message " + textMessage.getSubject());
+                    LOG.debug("Arrived modification message " + textMessage.getSubject());
                     String keyParts[] = textMessage.getSubject().split("\\.");
                     String action = keyParts[0].toLowerCase();
                     switch (action) {
                         case "update":
-
-			    String messageId = textMessage.getStringProperty("messageId");
-			    LOG.debug("MessageID: "+messageId);
-			    LOG.debug("Number: "+textMessage.getStringProperty("number"));
-			    LOG.debug("Count: "+textMessage.getStringProperty("count"));
+                            boolean error = false;
+                            String messageId = textMessage.getStringProperty("messageId");
+                            LOG.debug("MessageID: " + messageId);
+                            LOG.debug("Number: " + textMessage.getStringProperty("number"));
+                            LOG.debug("Count: " + textMessage.getStringProperty("count"));
 
                             int number = textMessage.getIntProperty("number");
                             int count = textMessage.getIntProperty("count");
@@ -982,50 +958,46 @@ private boolean isDisconnected;
 
                             LOG.debug("Accepted " + number + "/" + count);
                             chunks.put(messageId, chunks.get(messageId) + textMessage.getText());
-                            LOG.info("Chunk length for " + messageId + " is " + chunks.get(messageId).length());
+                            LOG.debug("Chunk length for " + messageId + " is " + chunks.get(messageId).length());
                             if (number < count - 1) {
-//                                    synchronized (semaphore) {
-//                                        this.semaphore = "3";
-//                                ((ActionThread) (responseThreads.get(messageId))).needContinue(true);
-//                                        responseThreads.get(messageId).interrupt();
-//                                    }
-                                    textMessage.acknowledge();
-                                    continue;
-                                }
-                            LOG.info("Mission completed (for update)");
+                                textMessage.acknowledge();
+                                continue;
+                            }
+                            LOG.debug("Mission completed (for update)");
                             String data = chunks.get(messageId);
                             chunks.remove(messageId);
 
                             String transactionId = textMessage.getStringProperty("transactionId");
                             String uuid = textMessage.getStringProperty("uuid");
-                            LOG.info("Updating " + uuid);
+                            LOG.info("Updating " + uuid+". "+data);
+
                             UpdateHelper updateHelper = new UpdateHelper(uuid, transactionId);
                             updateHelper.transformFromXML(data);
                             //store patch
                             updatePatches.put(uuid, updateHelper.getPatch());
 
                             List<DataClass> allSchema = new ArrayList<>(schema.keySet());
-                            //List<DataClass> schema = accessor.getSchema();        //todo: optimize!!!
+
                             String target = textMessage.getStringProperty("target");    //target classes
-                            LOG.info("Target: " + target);
+                            LOG.debug("Target: " + target);
                             String targets[] = target.split(",");
                             ArrayList<String> appliedClasses = new ArrayList<>();
                             for (int i = targets.length - 1; i >= 0; i--) {
-                                LOG.info("i=" + i);
-                                LOG.info("TargetLength: " + targets.length);
-                                LOG.info("Checking entry " + targets[i]);
+                                LOG.debug("i=" + i);
+                                LOG.debug("TargetLength: " + targets.length);
+                                LOG.debug("Checking entry " + targets[i]);
                                 //reverse order - to high priority
                                 String[] classNames = targets[i].split("-");        //parse from top to bottom (specialize)
 
-                                LOG.info("ClassNames: " + classNames);
+                                LOG.debug("ClassNames: " + classNames);
 
                                 //search in reverse order to last monolithic class
                                 int k = -1;
                                 for (int j = classNames.length - 1; j >= 0; j--) {
                                     String clName = classNames[j];
-                                    LOG.info("ClName: " + clName);
+                                    LOG.debug("ClName: " + clName);
                                     for (DataClass schemaElement : allSchema) {
-                                        LOG.info("Checking class path: " + schemaElement.getClassName());
+                                        LOG.debug("Checking class path: " + schemaElement.getClassName());
                                         if (schemaElement.getClassName().equalsIgnoreCase(clName) && schemaElement.isMonolithic() == true) {
                                             k = j;        //store monolithic entry
                                             break;
@@ -1035,7 +1007,7 @@ private boolean isDisconnected;
                                 }
 
                                 if (k >= 0) {
-                                    LOG.info("Found monolithic entry " + classNames[k]);
+                                    LOG.debug("Found monolithic entry " + classNames[k]);
                                     if (!appliedClasses.contains(classNames[k])) {
                                         this.buildSubSchema(classNames, 0, k, updateHelper, allSchema);    //schema contains all inherited properties
                                         for (int l = 0; l <= k; l++) appliedClasses.add(classNames[l]);
@@ -1051,12 +1023,13 @@ private boolean isDisconnected;
                                 if (k < classNames.length - 1) {
                                     //need to overlay some inherited classes
                                     for (int j = k + 1; j < classNames.length; j++) {
-                                        LOG.info("Pass through overlay " + classNames[j]);
+                                        LOG.debug("Pass through overlay " + classNames[j]);
                                         if (!appliedClasses.contains(classNames[j])) {
                                             this.buildSubSchema(classNames, j, j, updateHelper, allSchema);
                                             Accessor accessor = getAccessor(classNames[j]);
                                             if (!accessor.update(classNames[j], updateHelper)) {
                                                 LOG.error("Found an error when updating " + updateHelper.getUuid() + " class: " + classNames[j]);
+                                                error = true;
                                                 continue;
                                                 //overlay by single instances
                                             }
@@ -1066,25 +1039,37 @@ private boolean isDisconnected;
                             }            //and go to most prioritied values
 
                             updatePatches.remove(uuid);
-                            textMessage.acknowledge();
+                            if (!error) {
+                                textMessage.acknowledge();
+                            } else {
+                                session.recover();
+                            }
                             break;
 
                         case "remove":
-                            textMessage.acknowledge();
                             transactionId = textMessage.getStringProperty("transactionId");
                             String className = keyParts[1];        //add specify
                             uuid = textMessage.getStringProperty("uuid");
+                            LOG.info("Removing object "+uuid);
                             Accessor accessor = getAccessor(className);
                             if (accessor.backup(transactionId, className, uuid)) {
                                 if (accessor.remove(transactionId, className, uuid)) {
                                     textMessage.acknowledge();
                                 } else {
-                                    LOG.info("Problem when removing " + className + "." + uuid);
+                                    LOG.error("Problem when removing " + className + "." + uuid);
+                                    session.recover();
                                 }
                             } else {
-                                LOG.info("Problem when backing up " + className + "." + uuid);
+                                LOG.error("Problem when backing up " + className + "." + uuid);
+                                session.recover();
                             }
                     }
+                } catch (JMSException e) {
+                    try {
+                        Thread.sleep(2000); //just wait connection from parallel thread
+                    } catch (Exception e1) {
+                    }
+                    ;
                 } catch (Exception e) {
                     e.printStackTrace();        //todo: granularity
                 }
@@ -1093,7 +1078,6 @@ private boolean isDisconnected;
     }
 
     private class ConnectorShutdownHook extends Thread {
-
 
         public ConnectorShutdownHook() {
         }
@@ -1106,10 +1090,8 @@ private boolean isDisconnected;
                 sendToUno(textMessage, "");
             } catch (Exception e) {
             }
-            LOG.info("Disconnecting");
             isDisconnected = true;
-
-            System.out.println("Graceful shutdown");
+            LOG.info("Graceful shutdown");
         }
     }
 
@@ -1156,7 +1138,7 @@ private boolean isDisconnected;
                 Accessor accessor = getAccessor(className);
                 List<DataClass> allSchema = new ArrayList<>(schema.keySet());        //todo: optimize!!!
                 String target = sourceMessage.getStringProperty("target");    //target classes
-                LOG.info("Target: " + target);
+                LOG.debug("Target: " + target);
                 String targets[] = target.split(",");
                 ArrayList<String> appliedClasses = new ArrayList<>();
                 for (int i = targets.length - 1; i >= 0; i--) {
@@ -1259,7 +1241,6 @@ private boolean isDisconnected;
                         response.setStringProperty("transactionId", transactionId);
                         response.setSubject("matchResponse." + id);
                         LOG.debug("Sending response. Subject: " + "matchResponse." + id + " TR: " + transactionId);
-//                LOG.debug("Response is "+stringResult);
                         sendToUno(response, stringResult);
                         break;
                 }
@@ -1331,7 +1312,6 @@ private boolean isDisconnected;
             } catch (JMSException e) {
                 LOG.error("Error when specifying: " + e.getMessage());
             }
-
         }
     }
 

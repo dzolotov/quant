@@ -25,7 +25,7 @@ import java.util.HashMap;
 public interface Connector extends Runnable {
     void connect();
 
-    void connectESB(boolean readOnly) throws JMSException;
+    void connectESB() throws JMSException;
 
     void appendAccessor(Accessor accessor);
 

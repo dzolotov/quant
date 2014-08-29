@@ -53,8 +53,6 @@ public class DBAccessor extends DatasetAccessor {
             jc = JAXBContext.newInstance(DBSchemaJAXB.class);
             Unmarshaller u = jc.createUnmarshaller();
             schema = (DBSchemaJAXB) u.unmarshal(new FileReader(this.schemaName));
-//            if (((DBSchemaJAXB) schema).getSource() != null)
-//            getSourceData();
             getConnection();
             System.out.println(schema.getSchemaFields().size());
             bindingDB = DSBindingDatabase.getDatabase("DS", ((DBSchemaJAXB) schema).getDataClass());
@@ -68,66 +66,31 @@ public class DBAccessor extends DatasetAccessor {
         }
 
     }
-/*
-    private void getSourceData() throws IOException {
-//        if (((DBSchemaJAXB) (this.schema)).getSource() == null) throw new FileNotFoundException();
-
-        //connect to source
-//        String source = ((DBSchemaJAXB) this.schema).getSource();
-        LOG.info("Connecting to database...");
-
-        connection = null;
-        try {
-//            Context ctx = new InitialContext();
-//            DataSource ds = (DataSource) ctx.lookup(source);
-            this.connection = ds.getConnection();
-            //if (this.connection.getMetaData().getDriverName().contains("M"))
-            //this.connection.createStatement().executeUpdate("SET NAMES 'utf8'");
-        } catch (SQLException ne) {
-//            ne.printStackTrace();
-        }
-        //todo: parse data
-        //todo: parse data
-    }*/
 
     private Connection getConnection() {
-	try {
-    	    if (connection!=null && !connection.isClosed()) return connection;
-	} catch (Exception e) {
-	    try {
-		    LOG.info("Reconnecting...");
-		    connection = ds.getPooledConnection().getConnection();
-		    return connection;
-	    } catch (SQLException e3) {
-		LOG.error("Exception when connecting: "+e3.getMessage());
-	    }
-	}
+        try {
+            if (connection != null && !connection.isClosed()) return connection;
+        } catch (Exception e) {
+            try {
+                LOG.info("Reconnecting...");
+                connection = ds.getPooledConnection().getConnection();
+                return connection;
+            } catch (SQLException e3) {
+                LOG.error("Exception when connecting: " + e3.getMessage());
+            }
+        }
         try {
             connection = ds.getPooledConnection().getConnection();
-	    return connection;
+            return connection;
         } catch (Exception e2) {
-	    LOG.error("Exception when connecting: "+e2.getMessage());
+            LOG.error("Exception when connecting: " + e2.getMessage());
             return null;
         }
-//        try {
-//            if (this.connection==null || this.connection.isClosed()) {
-//                this.connection = ds.getConnection();
-//            }
-//            Statement st = this.connection.createStatement();
-//            st.executeQuery("SELECT 1");
-//        } catch (SQLException e) {
-//            try {
-//                this.connection = ds.getConnection();
-//            } catch (Exception e2) {
-//            }
-//        }
-//        return this.connection;
     }
 
     public void setSource(String source) throws IOException {
         ((DBSchemaJAXB) schema).setSource(source);
         getConnection();
-//        this.getSourceData();
     }
 
     private String getIdentifierField(String identifierName) {
@@ -164,23 +127,23 @@ public class DBAccessor extends DatasetAccessor {
         if (fieldName == null) return null;
         try {
 
-	    String names = "";
-	    for (AccessorField field : schema.getSchemaFields()) {
-		String expression = ((DBFieldJAXB) field).getExpression();
-		if (field.isIdentifier()) continue;
-		String name = ((DBFieldJAXB) field).getName();
-		if (!names.isEmpty()) names+=",";
-		if (expression==null && name.indexOf(".")>=0) name = name+" AS "+name.replace(".","_");
-		if (expression!=null) name = expression+" AS "+name;
-		names+=name;
-	    }
+            String names = "";
+            for (AccessorField field : schema.getSchemaFields()) {
+                String expression = ((DBFieldJAXB) field).getExpression();
+                if (field.isIdentifier()) continue;
+                String name = ((DBFieldJAXB) field).getName();
+                if (!names.isEmpty()) names += ",";
+                if (expression == null && name.indexOf(".") >= 0) name = name + " AS " + name.replace(".", "_");
+                if (expression != null) name = expression + " AS " + name;
+                names += name;
+            }
 
-            String q = "SELECT "+tableName + "." + fieldName+","+names+" FROM " + tableName;
+            String q = "SELECT " + tableName + "." + fieldName + "," + names + " FROM " + tableName;
 
             for (DBJoinJAXB dbjoin : ((DBSchemaJAXB) schema).getJoin()) {
-		if ("left".equalsIgnoreCase(dbjoin.getType())) q+=" LEFT";
-		String joinFrom = dbjoin.getFrom();
-   	        if (joinFrom.indexOf(".")<0) joinFrom = tableName+"."+joinFrom;
+                if ("left".equalsIgnoreCase(dbjoin.getType())) q += " LEFT";
+                String joinFrom = dbjoin.getFrom();
+                if (joinFrom.indexOf(".") < 0) joinFrom = tableName + "." + joinFrom;
                 q += " JOIN " + dbjoin.getWith() + " ON " + joinFrom + "=" + dbjoin.getWith() + "." + dbjoin.getTo() + "";
             }
             q += " WHERE " + tableName + "." + fieldName + "=?";
@@ -198,12 +161,12 @@ public class DBAccessor extends DatasetAccessor {
 
                 String name = ((DBFieldJAXB) field).getName();
                 String path = this.getPath(name);
-		name = name.replace("[","");
-		name = name.replace("]","");
-		name = name.replace("`","");
-    	        name = name.replace("\"","");
+                name = name.replace("[", "");
+                name = name.replace("]", "");
+                name = name.replace("`", "");
+                name = name.replace("\"", "");
 
-		name = name.replace(".","_");
+                name = name.replace(".", "_");
                 if (name.startsWith("@")) {
                     String value = ((DBFieldJAXB) field).getValue();
                     if (value == null) continue;
@@ -264,10 +227,10 @@ public class DBAccessor extends DatasetAccessor {
                     String name = ((DBFieldJAXB) field).getName();
                     String path = this.getPath(name);
 
-		    name = name.replace("[","");
-		    name = name.replace("]","");
-		    name = name.replace("`","");
-		    name = name.replace("\"","");
+                    name = name.replace("[", "");
+                    name = name.replace("]", "");
+                    name = name.replace("`", "");
+                    name = name.replace("\"", "");
 
                     if (name.startsWith("@")) {
                         String value = ((DBFieldJAXB) field).getValue();
@@ -276,7 +239,6 @@ public class DBAccessor extends DatasetAccessor {
                         continue;
                     }
 
-//        		    LOG.debug("Extracting field: "+name+" path: "+path+" value: "+rs.getString(name));
                     String fieldType = field.getType();
                     String value = "";
                     if (fieldType.equalsIgnoreCase("date")) {
@@ -288,10 +250,7 @@ public class DBAccessor extends DatasetAccessor {
                             LocalDateTime ldt = ld.atStartOfDay();
                             value = ldt.atZone(ZoneId.systemDefault()).toInstant().toString();
                         }
-//
-//                        value = rs.getDate(name).toInstant().toString();
                     } else {
-//                        LOG.debug("Extracting field "+name);
                         value = rs.getString(name);
                     }
 
@@ -299,7 +258,6 @@ public class DBAccessor extends DatasetAccessor {
                 }
                 result.add(row);
             }
-//            LOG.debug(result);
             return result;
 
         } catch (SQLException se) {
@@ -411,12 +369,9 @@ public class DBAccessor extends DatasetAccessor {
                 if (value == null) {
                     ps.setObject(index, value);
                 } else if (value instanceof Instant) {
-                    //todo
                     Instant instant = (Instant) value;
-//                    LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
                     java.util.Date date = Date.from(instant);
                     ps.setDate(index, new java.sql.Date(date.getTime()));
-                    //set date
                 } else {
                     ps.setString(index, "" + value);
                 }
@@ -483,7 +438,6 @@ public class DBAccessor extends DatasetAccessor {
                         values.add(fieldValue);
                     }
 
-//                    values.add(newData.get(fieldPath));
                 }
             }
         }
@@ -548,19 +502,9 @@ public class DBAccessor extends DatasetAccessor {
                 ResultSetMetaData rsMetaData = keys.getMetaData();
                 int columnCount = rsMetaData.getColumnCount();
 
-//                for (int i = 1; i <= columnCount; i++) {
                 String key = keys.getString(1);
                 LOG.debug("Key: " + key + " identifier: " + identifierName);
                 keyResult.put(this.systemId + ":" + identifierName, key);
-//                    LOG.debug("Key found: "+i+": "+rsMetaData.getColumnName(i));
-//                    String keyName = rsMetaData.getColumnName(i);
-//                    String key = keys.getString(i);
-//                    if (idList.contains(keyName)) {
-//                        LOG.debug("Associate key "+keyName+" with "+key);
-//                        keyResult.put(keyName, key);
-//                    }
-//                    System.out.println("key " + i + " is " + key);
-//                }
             }
             return keyResult;
         } catch (SQLException se) {
@@ -572,9 +516,6 @@ public class DBAccessor extends DatasetAccessor {
     @Override
     public boolean checkByIdentifier(String transactionId, String className, String identifierName, String identifierValue) {
         String position = "";
-//        for (String identifier : identifiers.keySet()) {
-//            if (identifier.equalsIgnoreCase(identifierName)) position = identifiers.get(identifierName);
-//        }
         identifierValue = this.transformIdentifier(identifierName, identifierValue);
 
         String tableName = ((DBSchemaJAXB) schema).getTable();
@@ -592,7 +533,7 @@ public class DBAccessor extends DatasetAccessor {
 
     @Override
     public List<DataClass> getSchema() {
-        LOG.info("Extracting schema");
+        LOG.info("Extracting schema...");
         return this.getClassSchema(((DBSchemaJAXB) schema).getDataClass());
     }
 

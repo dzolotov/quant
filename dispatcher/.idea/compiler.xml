@@ -23,7 +23,6 @@
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="true" />
         <module name="dispatcher" />
-        <module name="main" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

@@ -39,10 +39,10 @@ public class DBJoinJAXB {
 
     @XmlAttribute(name = "type")
     public String getType() {
-	return type;
+        return type;
     }
 
     public void setType(String type) {
-	this.type = type;
+        this.type = type;
     }
 }

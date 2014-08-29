@@ -136,11 +136,11 @@ class DBFieldJAXB extends AccessorField {
 
     @XmlAttribute(name = "expression")
     public String getExpression() {
-	return expression;
+        return expression;
     }
 
     public void setExpression(String expression) {
-	this.expression = expression;
+        this.expression = expression;
     }
 
     @XmlAttribute(name = "value")

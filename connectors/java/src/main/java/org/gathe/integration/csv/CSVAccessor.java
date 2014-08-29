@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * CSV Accessor for CSV-based data source (read-only)
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -44,6 +46,14 @@ public class CSVAccessor extends DatasetAccessor {
     private char quote;
     private String schemaName;
 
+    /**
+     * CSV parser
+     * @param systemId System identifier
+     * @param schemaName Schema filepath
+     * @param separator CSV field separator
+     * @param quote CSV quote character
+     * @throws IOException
+     */
     public CSVAccessor(String systemId, String schemaName, char separator, char quote) throws IOException {
         super("DS", systemId);
         this.schemaName = schemaName;
@@ -66,6 +76,10 @@ public class CSVAccessor extends DatasetAccessor {
         }
     }
 
+    /**
+     * Parse data
+     * @throws IOException
+     */
     private void parseSourceFile() throws IOException {
         if (((CSVSchemaJAXB) (this.schema)).getSource() == null) throw new FileNotFoundException();
 
@@ -92,19 +106,13 @@ public class CSVAccessor extends DatasetAccessor {
                 }
 
                 //todo: check field type
-//                String type = ""+this.getType(""+(j+1));
                 if ("date".equalsIgnoreCase(this.getType("" + (j + 1))) && !entry[j].isEmpty()) {
                     try {
-//                        LOG.debug("Source date is "+entry[j]);
-
                         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy");
                         LocalDateTime ldt = LocalDate.parse(entry[j], dtf).atStartOfDay();
-//                        LocalDateTime ld = LocalDateTime.parse(entry[j]+" 11:00:00", dtf);
                         Instant instant = ldt.atZone(ZoneId.systemDefault()).toInstant();
-//                        LOG.debug("Transformed date is "+instant.toString());
                         row.put(this.getPath("" + (j + 1)), instant.toString());
                     } catch (DateTimeParseException e) {
-//                        LOG.error("Parse exception: "+e.getLocalizedMessage());
                         row.put(this.getPath("" + (j + 1)), "");
                     }
                 } else {
@@ -112,7 +120,6 @@ public class CSVAccessor extends DatasetAccessor {
                 }
             }
             data.add(row);
-            //process entry
         }
     }
 
@@ -141,6 +148,11 @@ public class CSVAccessor extends DatasetAccessor {
         return data;
     }
 
+    /**
+     * Get path (by key name)
+     * @param key Key name
+     * @return Path
+     */
     @Override
     protected String getPath(String key) {
         for (AccessorField field : schema.getSchemaFields()) {
@@ -157,6 +169,11 @@ public class CSVAccessor extends DatasetAccessor {
         return null;
     }
 
+    /**
+     * Get field type (by key name)
+     * @param key Key name
+     * @return Field type
+     */
     protected String getType(String key) {
         for (AccessorField field : schema.getSchemaFields()) {
             if (field.getKey().equalsIgnoreCase(key)) {
@@ -167,29 +184,49 @@ public class CSVAccessor extends DatasetAccessor {
         return null;
     }
 
-
+    /**
+     * Empty implementation for data updating method
+     * @param className       class name (ignored)
+     * @param identifierName  identifier name (ignored)
+     * @param identifierValue identifier value (ignored)
+     * @param newData         data (ignored)
+     * @return                always false
+     */
     @Override
     public boolean updateData(String className, String identifierName, String identifierValue, HashMap<String, String> newData) {
         return false;
     }
 
+    /**
+     * Empty implementation for data insertion method
+     * @param className       class name (ignored)
+     * @param identifierName  identifier name (ignored)
+     * @param identifierValue identifier value (ignored)
+     * @param newData         data (ignored)
+     * @return                always null
+     */
     @Override
     public HashMap<String, String> insertData(String className, String identifierName, String identifierValue, HashMap<String, String> newData) {
         return null;
     }
 
+    /**
+     * Check entry presence by identifier
+     * @param transactionId Quant transaction Id
+     * @param className Data class
+     * @param identifierName Identifier
+     * @param identifierValue Identifier value
+     * @return true if presence
+     */
     @Override
     public boolean checkByIdentifier(String transactionId, String className, String identifierName, String identifierValue) {
         String position = "";
-//        for (String identifier : identifiers.keySet()) {
-//            if (identifier.equalsIgnoreCase(identifierName)) position = identifiers.get(identifierName);
-//        }
         return this.getRow(identifierName, identifierValue, true) != null;
     }
 
     @Override
     public List<DataClass> getSchema() {
-        LOG.info("Extracting schema");
+        LOG.info("Extracting schema...");
         return this.getClassSchema(((CSVSchemaJAXB) schema).getDataClass());
     }
 }

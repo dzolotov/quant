@@ -15,6 +15,7 @@ package org.gathe.integration;
 
  @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
  */
+
 import org.apache.log4j.Logger;
 import org.apache.qpid.amqp_1_0.jms.TextMessage;
 import org.eclipse.jetty.server.Server;
