@@ -222,29 +222,11 @@ public class ReceiverThread extends Thread {
             while (!endpointManager.isDisconnected()) {
                 try {
                     Object message = null;
-//                    LOG.debug("Receiver is waiting for a message");
-//                    try {
                     if (activated) {
-//                        LOG.info("Waiting");
-//                        MessageConsumerImpl mci2 = (MessageConsumerImpl) messageConsumer;
-//                        mci2.
                         message = messageConsumer.receive(50);
-//                        LOG.info("Received");
                     } else {
                         message = messageConsumer.receive(200);
                     }
-//                    } catch (JMSException e) {
-//                        connect();
-//                        if (activated) {
-//                        LOG.info("Waiting");
-//                        MessageConsumerImpl mci2 = (MessageConsumerImpl) messageConsumer;
-//                        mci2.
-//                            message = messageConsumer.receive(50);
-//                        LOG.info("Received");
-//                        } else {
-//                            message = messageConsumer.receive(200);
-//                        }
-//                    }
                     if (message == null && !activated) {
                         if (checkForEchoResponse) {
                             LOG.error("Echo message not found: there are another consumers or message routing issue");
@@ -260,10 +242,10 @@ public class ReceiverThread extends Thread {
                             selfProducer.send(echoMessage);
                         }
 
-                        LOG.info("Sleep to let our doppelgänger retrieve echo message");
+                        LOG.debug("Sleep to let our doppelgänger retrieve echo message");
 
                         Thread.sleep(500);
-                        LOG.info("Wake up to check echo message presence");
+                        LOG.debug("Wake up to check echo message presence");
                         checkForEchoResponse = true;
                         continue;
                     }
@@ -295,7 +277,6 @@ public class ReceiverThread extends Thread {
                     String replyTo = textMessage.getReplyTo();
                     LOG.debug("replyTo: " + replyTo);
                     if (transactionId == null) transactionId = "";
-//                    LOG.info("Receiver: Message arrived: " + routingKey + " with " + content + " (transaction: " + transactionId + ")");
                     String[] keyParts = routingKey.split("\\.");
 
                     String action = keyParts[0].toLowerCase();
@@ -307,7 +288,7 @@ public class ReceiverThread extends Thread {
                         //merge chunks
                         int number = textMessage.getIntProperty("number");
                         int count = textMessage.getIntProperty("count");
-                        LOG.info("Data chunk (length: " + content.length() + ") " + number + "/" + count);
+                        LOG.debug("Data chunk (length: " + content.length() + ") " + number + "/" + count);
 
                         if (!chunks.containsKey(messageId)) {
                             chunks.put(messageId, "");
@@ -318,10 +299,10 @@ public class ReceiverThread extends Thread {
                             endpointManager.interruptRequestThread(messageId);
 
                             //notify requester
-                            LOG.info("Result message id: " + messageId);
+                            LOG.debug("Result message id: " + messageId);
 
                             String replyMessageId = endpointManager.getResponseThread(messageId).getMessageId();
-                            LOG.info("Origin message id: " + replyMessageId);
+                            LOG.debug("Origin message id: " + replyMessageId);
 
                             String reply = endpointManager.getReplyTo(messageId);
                             TextMessage notifyMessage = session.createTextMessage();
@@ -329,7 +310,7 @@ public class ReceiverThread extends Thread {
                             notifyMessage.setStringProperty("transactionId", transactionId);
                             notifyMessage.setSubject(reply);
                             notifyMessage.setStringProperty("waiting", "true");
-                            LOG.info("Sending wait notify to ep: " + reply);
+                            LOG.debug("Sending wait notify to ep: " + reply);
                             sendToEndpointsProducer(notifyMessage, "");
                             textMessage.acknowledge();
                             continue;
@@ -378,7 +359,6 @@ public class ReceiverThread extends Thread {
 
                             LOG.info("Receiver: Request for '" + keyParts[0] + "' with class " + className + " and uuid " + objectUuid);
 
-
                             RequestThread th = null;
 
                             int from = endpointManager.getEndpointIndex(replyTo);
@@ -392,25 +372,25 @@ public class ReceiverThread extends Thread {
 
                             switch (action) {
                                 case "update":
-                                    LOG.info("Receiver: Update notification " + className + " uuid: " + objectUuid + " Content: " + content);
+                                    LOG.debug("Receiver: Update notification " + className + " uuid: " + objectUuid + " Content: " + content);
                                     th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String, String>(), null, number, count);
                                     break;
 
                                 case "remove":
-                                    LOG.info("Receiver: Remove notification " + className + " uuid: " + objectUuid + " Content: " + content);
+                                    LOG.debug("Receiver: Remove notification " + className + " uuid: " + objectUuid + " Content: " + content);
                                     th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String, String>(), null, number, count);
                                     break;
 
                                 case "get":
                                     //add animation for get
 
-                                    LOG.info("Receiver: Requesting class " + className + " uuid: " + objectUuid);
+                                    LOG.debug("Receiver: Requesting class " + className + " uuid: " + objectUuid);
                                     th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String, String>(), new GetResponseThread(transactionId, messageId, className), number, count);
                             }
 
                             if (th != null) {
 
-                                LOG.info("Receiver: specify class " + className + " before action " + keyParts[0]);
+                                LOG.debug("Receiver: specify class " + className + " before action " + keyParts[0]);
 
                                 SpecifyThread specifyThread = new SpecifyThread(transactionId, messageId, objectUuid, replyTo, oldRoutingKey, content, new SpecifyResponseThread(transactionId, messageId, className));
                                 specifyThread.addChainThread(th);
@@ -440,7 +420,7 @@ public class ReceiverThread extends Thread {
                                 identifyResponse.setStringProperty("transactionId", transactionId);
                                 identifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
-                                LOG.info("Sending to ep: " + identifyResponse);
+                                LOG.debug("Sending to ep: " + identifyResponse);
                                 sendToEndpointsProducer(identifyResponse, result);
                             }
                             break;
@@ -468,7 +448,7 @@ public class ReceiverThread extends Thread {
                                 unifyResponse.setStringProperty("transactionId", transactionId);
                                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                                 LOG.debug("Data: " + result + " message id: " + messageId);
-                                LOG.info("Sending to ep: " + unifyResponse);
+                                LOG.debug("Sending to ep: " + unifyResponse);
                                 sendToEndpointsProducer(unifyResponse, result);
                             }
                             break;
@@ -476,7 +456,7 @@ public class ReceiverThread extends Thread {
                             if (!activated) continue;
                             from = endpointManager.getEndpointIndex(replyTo);
                             endpointManager.sendAnimation(transactionId, routingKey, uuid, colors.get(keyParts[0]), "-" + from); //get request
-                            LOG.info("Receiver: Specifing class " + keyParts[1] + " uuid: " + uuid);
+                            LOG.info("Receiver: Specifying class " + keyParts[1] + " uuid: " + uuid);
                             th = new RequestThread(transactionId, messageId, uuid, replyTo, routingKey, content, new HashMap<String, String>(), new SpecifyResponseThread(transactionId, messageId, keyParts[1]), number, count);
                             th.start();
                             break;
@@ -519,45 +499,43 @@ public class ReceiverThread extends Thread {
 
                         case "got":
                             if (!activated) continue;
-                            LOG.info("Receiver: Got response from " + keyParts[1]);
+                            LOG.debug("Receiver: Got response from " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "unifyresponse":
                             if (!activated) continue;
-                            LOG.info("Receiver: Unify response " + keyParts[1]);
+                            LOG.debug("Receiver: Unify response " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
-                            LOG.info("Unify response parsed");
                             break;
                         case "matchresponse":
                             if (!activated) continue;
-                            LOG.info("Receiver: Match response " + keyParts[1]);
+                            LOG.debug("Receiver: Match response " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
-                            LOG.info("Match response parsed");
                             break;
                         case "identifyresponse":
                             if (!activated) continue;
-                            LOG.info("Receiver: Identify response " + keyParts[1]);
+                            LOG.debug("Receiver: Identify response " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "checkresponse":
                             if (!activated) continue;
-                            LOG.info("Receiver: Check response: " + keyParts[1]);
+                            LOG.debug("Receiver: Check response: " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                         case "specifyresponse":
                             if (!activated) continue;
-                            LOG.info("Receiver: Specify response from " + keyParts[1]);
+                            LOG.debug("Receiver: Specify response from " + keyParts[1]);
                             endpointManager.reactivateSystem(keyParts[1]);
                             endpointManager.gotResponse(messageId, keyParts[1], content);
                             break;
                     }
                 } catch (javax.jms.IllegalStateException e) {
-                    LOG.info("ESB disconnected. Closing!");
+                    LOG.error("ESB disconnected. Closing!");
                     endpointManager.disconnect();
                 } catch (JMSException e2) {
                     boolean connected = false;
@@ -582,40 +560,6 @@ public class ReceiverThread extends Thread {
         }
         LOG.info("Leaving receiver thread");
     }
-/*
-
-    class ScanResponseThread extends ResponseThread {
-        public ScanResponseThread(String transactionId, String messageId) {
-            super(transactionId, messageId);
-        }
-
-        public void run() {
-            //response animation
-            ArrayList<String> responses = endpointManager.getAllResponses(messageId);
-            boolean rescan = false;
-            for (String response : responses) {
-                LOG.debug("Scan result: " + response);
-                String count = response.substring(0, response.indexOf("/"));
-                String unbinded = response.substring(response.indexOf("/") + 1);
-                if (Integer.getInteger(unbinded) != 0) rescan = true;
-            }
-
-            HashMap<String, String> headers = endpointManager.getHeaders(messageId);
-            String replyTo = endpointManager.getReplyTo(messageId);
-
-            //extract replyTo
-            //extract filters
-            headers.put("mode", "seek");
-            headers.put("explain", (rescan ? "true" : "false"));
-
-            endpointManager.interruptRequestThread(messageId);
-            endpointManager.cleanupResponse(messageId);
-
-            Thread th = new RequestThread(transactionId, messageId, "", replyTo, "match." + endpointManager.getClassNames(messageId), "", headers, new MatchResponseThread(transactionId, messageId));
-            th.start();
-        }
-    }
-*/
 
     class MatchResponseThread extends ResponseThread {
         public MatchResponseThread(String transactionId, String messageId) {
@@ -632,9 +576,6 @@ public class ReceiverThread extends Thread {
                 endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("match"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
                 LOG.debug("Merge responses accepted");
                 ArrayList<String> responses = endpointManager.getAllResponses(messageId);
-//            for (String response : responses) {
-//                LOG.debug("Response: " + response);
-//            }
                 //todo: merge responses
                 List<List<String>> allResponses = new ArrayList<>();
                 List<String> result = new ArrayList<>();
@@ -657,7 +598,6 @@ public class ReceiverThread extends Thread {
                     }
                 }
                 String resultString = joinStrings(",", result.toArray(new String[0]));
-//            LOG.debug("Merged response: " + resultString);
                 try {
                     TextMessage matchResponse = session.createTextMessage();
                     matchResponse.setStringProperty("transactionId", transactionId);
@@ -666,7 +606,7 @@ public class ReceiverThread extends Thread {
                     LOG.debug("Match response message: " + matchResponse + "; " + matchResponse.getText() + "|" + matchResponse.getStringProperty("messageId") + "|" + matchResponse.getSubject());
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
-                    LOG.info("Sending to ep: " + matchResponse);
+                    LOG.debug("Sending to ep: " + matchResponse);
                     sendToEndpointsProducer(matchResponse, resultString.toString());
                 } catch (JMSException e) {
                     e.printStackTrace();
@@ -710,7 +650,7 @@ public class ReceiverThread extends Thread {
                 LOG.debug("Get response message: " + getResponse + "; " + getResponse.getText() + "|" + getResponse.getStringProperty("messageId") + "|" + getResponse.getSubject());
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
-                LOG.info("Sending to ep: " + getResponse);
+                LOG.debug("Sending to ep: " + getResponse);
                 sendToEndpointsProducer(getResponse, resultString.toString());
             } catch (Exception e) {
                 LOG.error("Error when sending response");
@@ -727,10 +667,10 @@ public class ReceiverThread extends Thread {
         public void run() {
             //response animation
             try {
-                LOG.info("Unify response thread activated");
+                LOG.debug("Unify response thread activated");
                 endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("unify"), endpointManager.getResponseAnimation(messageId));
                 endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("unify"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
-                LOG.info("Sendanim");
+                LOG.debug("Sendanim");
                 ArrayList<String> responses = endpointManager.getAllResponses(messageId);
                 //check for nonuniqueness
                 String response = "";
@@ -745,11 +685,10 @@ public class ReceiverThread extends Thread {
                 unifyResponse.setStringProperty("transactionId", transactionId);
                 unifyResponse.setSubject(endpointManager.getReplyTo(messageId));
                 endpointManager.interruptRequestThread(messageId);
-                LOG.info("presync");
+                LOG.debug("presync");
                 sendToEndpointsProducer(unifyResponse, response);
                 endpointManager.cleanupResponse(messageId);
-                LOG.info("Response sent");
-//                }
+                LOG.debug("Response sent");
 
             } catch (Exception e) {
                 LOG.error("Error when sending unify response");
@@ -791,11 +730,10 @@ public class ReceiverThread extends Thread {
                     LOG.debug("Data: " + responseString + " message id: " + messageId);
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
-                    LOG.info("Sending to ep: " + identifyResponse);
+                    LOG.debug("Sending to ep: " + identifyResponse);
                     sendToEndpointsProducer(identifyResponse, responseString);
-//                    }
                 } else {
-                    LOG.info("Receiver: Got identify response " + responseString + " and proceed to next action");
+                    LOG.debug("Receiver: Got identify response " + responseString + " and proceed to next action");
                     endpointManager.setResponse(messageId, responseString);
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
@@ -841,7 +779,7 @@ public class ReceiverThread extends Thread {
                     endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("specify"), endpointManager.getResponseAnimation(messageId));
                     endpointManager.sendAnimation(transactionId, endpointManager.getRequestCommonAction(messageId), endpointManager.getRequestIdentifier(messageId), colors.get("specify"), "+" + endpointManager.getEndpointIndex(endpointManager.getReplyTo(messageId)));
 
-                    LOG.info("Receiver: Got specify response " + responseString + " and send it to endpoint " + specifyReplyTo);
+                    LOG.debug("Receiver: Got specify response " + responseString + " and send it to endpoint " + specifyReplyTo);
 
                     TextMessage specifyResponse = session.createTextMessage();
                     specifyResponse.setStringProperty("messageId", messageId);
@@ -849,10 +787,10 @@ public class ReceiverThread extends Thread {
                     specifyResponse.setSubject(specifyReplyTo);
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
-                    LOG.info("Sending to ep: " + specifyResponse);
+                    LOG.debug("Sending to ep: " + specifyResponse);
                     sendToEndpointsProducer(specifyResponse, responseString);
                 } else {
-                    LOG.info("Receiver: Got specify response " + responseString + " and proceed to next action");
+                    LOG.debug("Receiver: Got specify response " + responseString + " and proceed to next action");
                     endpointManager.interruptRequestThread(messageId);
                     endpointManager.cleanupResponse(messageId);
                     endpointManager.setResponse(messageId, responseString);
@@ -892,9 +830,8 @@ public class ReceiverThread extends Thread {
                 checkResponse.setSubject(endpointManager.getReplyTo(messageId));
                 endpointManager.interruptRequestThread(messageId);
                 endpointManager.cleanupResponse(messageId);
-                LOG.info("Sending to ep: " + checkResponse);
+                LOG.debug("Sending to ep: " + checkResponse);
                 sendToEndpointsProducer(checkResponse, result);
-//                }
 
             } catch (Exception e) {
                 LOG.error("Error when sending check response " + e.getMessage());
@@ -940,13 +877,13 @@ public class ReceiverThread extends Thread {
             this.responseThread = responseThread;
             this.number = number;
             this.count = count;
-            LOG.info(action + " Thread initialized");
+            LOG.debug(action + " Thread initialized");
         }
 
         @Override
         public void run() {
             try {
-                LOG.info("Run thread for " + action + ", " + className + ", " + identifier + " (replyTo: " + replyTo + ", messageId: " + messageId + ", routingKey:" + routingKey + " # (" + number + "/" + count + ")");
+                LOG.debug("Run thread for " + action + ", " + className + ", " + identifier + " (replyTo: " + replyTo + ", messageId: " + messageId + ", routingKey:" + routingKey + " # (" + number + "/" + count + ")");
 
                 TextMessage request = session.createTextMessage();
                 request.setStringProperty("messageId", messageId);
@@ -999,7 +936,7 @@ public class ReceiverThread extends Thread {
 
                     case "update":
                         endpointManager.sendAnimation(transactionId, action + "." + className, identifier, colors.get(action), endpointManager.getAnimationToUpdateEndpoints(className));
-                        LOG.info("Updating chunk: " + number + " from " + count);
+                        LOG.debug("Updating chunk: " + number + " from " + count);
                         sendToProducer(request);
                         return;
 
@@ -1030,12 +967,12 @@ public class ReceiverThread extends Thread {
                 sendToProducer(request);
                 Thread.sleep(3000);
                 endpointManager.timeoutResponse(messageId);
-                LOG.info(action + " response timeout");
+                LOG.error(action + " response timeout");
 
             } catch (JMSException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
-                LOG.info("Response arrived");
+                LOG.debug("Response arrived");
             }
         }
 
@@ -1065,11 +1002,10 @@ public class ReceiverThread extends Thread {
                 String specifyRoutingKey = "specify." + className; // "specify.<className>
                 String specifyReplyTo = null;
 
-                LOG.info("SpecifyThread: Create request for specify class " + this.className + " with messageId " + specifyMessageId + " (next messageId is " + messageId + ")");
+                LOG.debug("SpecifyThread: Create request for specify class " + this.className + " with messageId " + specifyMessageId + " (next messageId is " + messageId + ")");
 
                 // identifier is uuid
                 // replyTo is null
-
 
                 Thread th = new RequestThread(transactionId, specifyMessageId, identifier, specifyReplyTo, specifyRoutingKey, content, new HashMap<String, String>(), new SpecifyResponseThread(transactionId, specifyMessageId, clName), 0, 0);
                 th.start();
@@ -1081,9 +1017,8 @@ public class ReceiverThread extends Thread {
                     if (specificClassName == null) {
                         specificClassName = className;
                     }
-                    LOG.info("SpecifyThread: Specify response for class " + className + " with messageId " + specifyMessageId + " is " + specificClassName);
+                    LOG.debug("SpecifyThread: Specify response for class " + className + " with messageId " + specifyMessageId + " is " + specificClassName);
                 } catch (InterruptedException e) {
-
                 }
             }
 

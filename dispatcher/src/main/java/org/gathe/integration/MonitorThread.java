@@ -103,7 +103,7 @@ public class MonitorThread extends Thread {
                     //send ping
                     Thread.sleep(this.interval * 1000);
                 } catch (javax.jms.IllegalStateException e) {
-                    LOG.info("ESB disconnected in monitor thread");
+                    LOG.error("ESB disconnected in monitor thread");
                     endpointManager.disconnect();
                 } catch (Exception e) {
                     LOG.error("Error in monitor loop: " + e.getMessage());
@@ -113,7 +113,6 @@ public class MonitorThread extends Thread {
                 webServer.stop();
             } catch (Exception e) {
             }
-            ;
         } catch (Exception e) {
             LOG.error("Error in monitor thread: " + e.getMessage());
         }

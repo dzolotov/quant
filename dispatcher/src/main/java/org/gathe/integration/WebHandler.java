@@ -48,7 +48,7 @@ public class WebHandler extends AbstractHandler {
                        HttpServletRequest request,
                        HttpServletResponse response)
             throws IOException, ServletException {
-        LOG.info("Handling target: " + target);
+        LOG.debug("Handling target: " + target);
 
         if (target.equalsIgnoreCase("/init")) {
             String threadName = Thread.currentThread().getName();

@@ -22,9 +22,6 @@ public class Main {
     private static EndpointManager endpointManager = new EndpointManager();
 
     public static void main(String[] args) throws Exception {
-//        System.out.println(new File("log4j.xml").getAbsolutePath());
-//        System.setProperty("log4j.configuration", "file:"+new File("log4j.xml").getAbsolutePath());
-
         new EndpointManager();
         System.out.println("Leaving main loop");
     }

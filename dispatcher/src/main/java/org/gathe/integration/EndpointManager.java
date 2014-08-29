@@ -273,7 +273,7 @@ public class EndpointManager {
 
     //Traverse to most abstract type
     public String traverseToAbstract(String className) {
-        LOG.info("Traversing to abstract via " + className);
+        LOG.debug("Traversing to abstract via " + className);
         String topClass = this.searchAncestor(className);
         if (topClass != null) return traverseToAbstract(topClass);
         return className;
@@ -300,7 +300,7 @@ public class EndpointManager {
     public String searchNearestIdentification(String className, String identifier) {
         LOG.info("Searching for nearest identification");
         for (String endpointName : endpoints.keySet()) {
-            LOG.info("Endpoint: " + endpointName);
+            LOG.debug("Endpoint: " + endpointName);
             HashMap<String, Object> epRef = (HashMap<String, Object>) endpoints.get(endpointName).get("identifiers");
             HashMap<String, String> idRef = (HashMap<String, String>) epRef.get(className);
             if (idRef != null && idRef.containsKey(identifier))

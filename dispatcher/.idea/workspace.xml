@@ -2,38 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="47b3ad33-890c-4e51-a8cb-708d49b1d972" name="Default" comment="Long messages chunk transfer&#10;Some issues with complex requests resolved&#10;MatchAll API/SPI changes &#10;">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__commons_io_commons_io_2_4.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__log4j_log4j_1_2_17.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_geronimo_specs_geronimo_jms_1_1_spec_1_1_1.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_qpid_qpid_amqp_1_0_client_0_28.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_qpid_qpid_amqp_1_0_client_jms_0_28.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_qpid_qpid_amqp_1_0_common_0_28.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_eclipse_jetty_jetty_http_9_0_2_v20130417.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_eclipse_jetty_jetty_io_9_0_2_v20130417.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_eclipse_jetty_jetty_server_9_0_2_v20130417.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_eclipse_jetty_jetty_util_9_0_2_v20130417.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_eclipse_jetty_orbit_javax_servlet_3_0_0_v201112011016.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_hsqldb_hsqldb_2_3_1.xml" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/dispatcher.iml" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/src/main/dispatcher.iml" afterPath="" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/csv/CSVAccessor.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/csv/CSVAccessor.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/Connector.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/Connector.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/DBAccessor.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/DBAccessor.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/DBJoinJAXB.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/DBJoinJAXB.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/DSBindingDatabase.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/DSBindingDatabase.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/DatasetAccessor.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/DatasetAccessor.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/GetHelper.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/GetHelper.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/xml/XMLAccessor.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/xml/XMLAccessor.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/compiler.xml" afterPath="$PROJECT_DIR$/.idea/compiler.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/db.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/db/db.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/modules.xml" afterPath="$PROJECT_DIR$/.idea/modules.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" />
     </list>
     <ignored path="dispatcher.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -96,11 +70,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="ReceiverThread.java" pinned="false" current="false" current-in-tab="false">
+      <file leaf-file-name="ReceiverThread.java" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="4500" max-vertical-offset="16620">
-              <caret line="317" column="58" selection-start-line="317" selection-start-column="58" selection-end-line="317" selection-end-column="58" />
+            <state vertical-scroll-proportion="0.34385383" vertical-offset="8388" max-vertical-offset="15645">
+              <caret line="575" column="50" selection-start-line="575" selection-start-column="50" selection-end-line="575" selection-end-column="50" />
               <folding>
                 <element signature="imports" expanded="true" />
                 <element signature="e#5723#5739#0" expanded="true" />
@@ -112,7 +86,7 @@
       <file leaf-file-name="Response.java" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/Response.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="75" max-vertical-offset="540">
+            <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="480">
               <caret line="5" column="62" selection-start-line="5" selection-start-column="62" selection-end-line="5" selection-end-column="62" />
               <folding />
             </state>
@@ -122,19 +96,67 @@
       <file leaf-file-name="ResponseMerger.java" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.0" vertical-offset="480" max-vertical-offset="2190">
-              <caret line="32" column="13" selection-start-line="32" selection-start-column="13" selection-end-line="32" selection-end-column="13" />
+            <state vertical-scroll-proportion="0.0" vertical-offset="1553" max-vertical-offset="2190">
+              <caret line="135" column="24" selection-start-line="135" selection-start-column="24" selection-end-line="135" selection-end-column="24" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="ResponseThread.java" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseThread.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="375">
+              <caret line="9" column="67" selection-start-line="9" selection-start-column="67" selection-end-line="9" selection-end-column="67" />
               <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="EndpointManager.java" pinned="false" current="true" current-in-tab="true">
+      <file leaf-file-name="WebHandler.java" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="407" max-vertical-offset="1950">
+              <caret line="42" column="8" selection-start-line="42" selection-start-column="8" selection-end-line="42" selection-end-column="8" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="EndpointManager.java" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.33333334" vertical-offset="10952" max-vertical-offset="12360">
-              <caret line="793" column="16" selection-start-line="793" selection-start-column="16" selection-end-line="793" selection-end-column="16" />
+            <state vertical-scroll-proportion="0.0" vertical-offset="7499" max-vertical-offset="12645">
+              <caret line="539" column="8" selection-start-line="539" selection-start-column="8" selection-end-line="539" selection-end-column="8" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="Main.java" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="510">
+              <caret line="24" column="0" selection-start-line="24" selection-start-column="0" selection-end-line="24" selection-end-column="0" />
               <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="MonitorThread.java" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="1266" max-vertical-offset="1890">
+              <caret line="115" column="0" selection-start-line="115" selection-start-column="0" selection-end-line="115" selection-end-column="0" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -152,12 +174,14 @@
   <component name="IdeDocumentHistory">
     <option name="changedFiles">
       <list>
-        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" />
         <option value="$PROJECT_DIR$/src/main/pom.xml" />
-        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseThread.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" />
+        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" />
+        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
+        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" />
+        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" />
       </list>
     </option>
   </component>
@@ -283,7 +307,7 @@
     <property name="MemberChooser.sorted" value="false" />
     <property name="MemberChooser.showClasses" value="true" />
     <property name="MemberChooser.copyJavadoc" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../endpoint_jackrabbit/trunk" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Project" />
     <property name="project.structure.proportion" value="0.0" />
     <property name="project.structure.side.proportion" value="0.2" />
@@ -549,7 +573,9 @@
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="82" max-vertical-offset="12345">
           <caret line="39" column="13" selection-start-line="39" selection-start-column="13" selection-end-line="39" selection-end-column="13" />
-          <folding />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
@@ -826,34 +852,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="110" max-vertical-offset="1770">
-          <caret line="33" column="16" selection-start-line="33" selection-start-column="16" selection-end-line="33" selection-end-column="16" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseThread.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="375">
-          <caret line="9" column="67" selection-start-line="9" selection-start-column="67" selection-end-line="9" selection-end-column="67" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.3322785" vertical-offset="0" max-vertical-offset="1890">
-          <caret line="14" column="0" selection-start-line="14" selection-start-column="0" selection-end-line="14" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.3488372" vertical-offset="0" max-vertical-offset="645">
-          <caret line="15" column="2" selection-start-line="15" selection-start-column="2" selection-end-line="15" selection-end-column="2" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/resources/dashboard.html">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="0">
@@ -868,6 +866,34 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="7499" max-vertical-offset="12645">
+          <caret line="539" column="8" selection-start-line="539" selection-start-column="8" selection-end-line="539" selection-end-column="8" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="510">
+          <caret line="24" column="0" selection-start-line="24" selection-start-column="0" selection-end-line="24" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="1266" max-vertical-offset="1890">
+          <caret line="115" column="0" selection-start-line="115" selection-start-column="0" selection-end-line="115" selection-end-column="0" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/Response.java">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="480">
@@ -878,28 +904,40 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="1280" max-vertical-offset="2025">
-          <caret line="32" column="13" selection-start-line="32" selection-start-column="13" selection-end-line="32" selection-end-column="13" />
+        <state vertical-scroll-proportion="0.0" vertical-offset="1553" max-vertical-offset="2190">
+          <caret line="135" column="24" selection-start-line="135" selection-start-column="24" selection-end-line="135" selection-end-column="24" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseThread.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="375">
+          <caret line="9" column="67" selection-start-line="9" selection-start-column="67" selection-end-line="9" selection-end-column="67" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="407" max-vertical-offset="1950">
+          <caret line="42" column="8" selection-start-line="42" selection-start-column="8" selection-end-line="42" selection-end-column="8" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="4500" max-vertical-offset="16620">
-          <caret line="317" column="58" selection-start-line="317" selection-start-column="58" selection-end-line="317" selection-end-column="58" />
+        <state vertical-scroll-proportion="0.34385383" vertical-offset="8388" max-vertical-offset="15645">
+          <caret line="575" column="50" selection-start-line="575" selection-start-column="50" selection-end-line="575" selection-end-column="50" />
           <folding>
             <element signature="imports" expanded="true" />
             <element signature="e#5723#5739#0" expanded="true" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.33333334" vertical-offset="10952" max-vertical-offset="12360">
-          <caret line="793" column="16" selection-start-line="793" selection-start-column="16" selection-end-line="793" selection-end-column="16" />
-          <folding />
         </state>
       </provider>
     </entry>

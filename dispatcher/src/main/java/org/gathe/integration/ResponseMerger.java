@@ -37,7 +37,7 @@ public class ResponseMerger {
     public ResponseMerger(ArrayList<String> responses) {
         this.responses = responses;
 
-        LOG.info("Merging xml response");
+        LOG.debug("Merging xml response");
         LOG.debug("Length=" + responses.size());
         for (int i = 0; i < responses.size(); i++) {
             LOG.debug("Data[" + i + "]=" + responses.get(i));
@@ -88,7 +88,7 @@ public class ResponseMerger {
                 newDocumentParentElement.appendChild(newElement);
                 newParent = newElement;
             }
-            LOG.info("Diving deep to " + subNodes.item(i).getNodeName() + " (newpath: " + path + ")");
+            LOG.debug("Diving deep to " + subNodes.item(i).getNodeName() + " (newpath: " + path + ")");
             parseXMLOneLevel((Element) subNodes.item(i), newDocument, newParent, path);
         }
     }
