@@ -67,6 +67,7 @@ public class BasicConnector extends Thread implements Connector {
     private ConcurrentHashMap<String, HashMap<String, String>> updatePatches = new ConcurrentHashMap<>();
     //    List<DataClass> schema = new ArrayList<>();
     private boolean isDisconnected;
+    private boolean first = true;
 
     public BasicConnector(String id, boolean readOnly) throws ClassNotFoundException, NamingException, JMSException {
         this.id = id;
@@ -110,7 +111,20 @@ public class BasicConnector extends Thread implements Connector {
             org.apache.qpid.amqp_1_0.jms.Connection connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
             connection.setClientID(id);
             connection.start();
-            session = connection.createSession(Session.AcknowledgeMode.CLIENT_ACKNOWLEDGE);    //???
+	    if (first) {
+		session = connection.createSession(Session.AcknowledgeMode.AUTO_ACKNOWLEDGE);
+		org.apache.qpid.amqp_1_0.jms.Queue inb = (Queue) context.lookup("inbound");
+        	org.apache.qpid.amqp_1_0.jms.Queue selfQ = (Queue) context.lookup("endpoints");
+        	selfProducer = session.createProducer(selfQ);
+		selfProducer.send(session.createTextMessage("Stub"));
+		consumer = session.createConsumer(inb);
+		org.apache.qpid.amqp_1_0.jms.Message message = consumer.receive(500);
+		LOG.debug("Stub message arrived: "+message);
+		selfProducer.close();
+		consumer.close();
+		session.close();
+	    }
+            session = connection.createSession(Session.AcknowledgeMode.CLIENT_ACKNOWLEDGE);
             session.recover();
             LOG.debug("Connected to session");
 
@@ -727,7 +741,7 @@ public class BasicConnector extends Thread implements Connector {
                         continue;
                     }
 
-                    LOG.info("Action: "+action);
+                    if (!id.equalsIgnoreCase(action)) LOG.info("Action: "+action);
                     switch (action) {
                         case "discover":
                             sendTextMessage("hello." + this.id, resultString.toString());
@@ -899,6 +913,10 @@ public class BasicConnector extends Thread implements Connector {
     }
 
     private class ModificationThread extends Thread {
+
+	int latency = 0;
+	private static final int latencyLimit = 300;		//30 secs
+
         public ModificationThread() {
             super();
         }
@@ -934,12 +952,20 @@ public class BasicConnector extends Thread implements Connector {
                         }
                     }
                     Object message = null;
-                    message = modification.receive();
+                    message = modification.receive(100);
+		    if (message==null) {
+			latency++;
+			if (latency>latencyLimit) {
+			    latency=0;
+			    session.recover();		//redeliver all non-acknowledged messages
+			}
+		    }
                     if (!(message instanceof TextMessage)) continue;    //skip empty
                     TextMessage textMessage = (TextMessage) message;
                     LOG.debug("Arrived modification message " + textMessage.getSubject());
                     String keyParts[] = textMessage.getSubject().split("\\.");
                     String action = keyParts[0].toLowerCase();
+		    latency = 0;
                     switch (action) {
                         case "update":
                             boolean error = false;
@@ -1013,6 +1039,7 @@ public class BasicConnector extends Thread implements Connector {
                                         if (!accessor.update(classNames[k], updateHelper)) {
                                             //found an error when update
                                             LOG.error("Found an error when updating " + updateHelper.getUuid() + " class: " + classNames[k]);
+					    error = true;
                                             continue;
                                         }
                                     }
@@ -1039,9 +1066,7 @@ public class BasicConnector extends Thread implements Connector {
                             updatePatches.remove(uuid);
                             if (!error) {
                                 textMessage.acknowledge();
-                            } else {
-                                session.recover();
-                            }
+                            };
                             break;
 
                         case "remove":
@@ -1055,11 +1080,9 @@ public class BasicConnector extends Thread implements Connector {
                                     textMessage.acknowledge();
                                 } else {
                                     LOG.error("Problem when removing " + className + "." + uuid);
-                                    session.recover();
                                 }
                             } else {
                                 LOG.error("Problem when backing up " + className + "." + uuid);
-                                session.recover();
                             }
                     }
                 } catch (JMSException e) {
@@ -1067,7 +1090,6 @@ public class BasicConnector extends Thread implements Connector {
                         Thread.sleep(2000); //just wait connection from parallel thread
                     } catch (Exception e1) {
                     }
-                    ;
                 } catch (Exception e) {
                     e.printStackTrace();        //todo: granularity
                 }

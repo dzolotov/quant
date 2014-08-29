@@ -1,8 +1,8 @@
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/WebHandler.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ResponseMerger.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ResponseThread.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/MonitorThread.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ReceiverThread.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/Response.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/Main.java
-/home/dmitrii/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/EndpointManager.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/Main.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ReceiverThread.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/EndpointManager.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/WebHandler.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/Response.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ResponseThread.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/MonitorThread.java
+/home/mit/IdeaProjects/quant/dispatcher/src/main/java/org/gathe/integration/ResponseMerger.java
