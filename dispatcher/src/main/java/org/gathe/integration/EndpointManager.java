@@ -159,11 +159,11 @@ public class EndpointManager extends Thread {
             e.printStackTrace();
         }
 
-        rt = new ReceiverThread(this);
-        mt = new MonitorThread(this);
     }
 
     public void run() {
+        rt = new ReceiverThread(this);
+        mt = new MonitorThread(this);
         mt.start();
         rt.start();
 

@@ -111,20 +111,20 @@ public class BasicConnector extends Thread implements Connector {
             org.apache.qpid.amqp_1_0.jms.Connection connection = (org.apache.qpid.amqp_1_0.jms.Connection) connectionFactory.createConnection();
             connection.setClientID(id);
             connection.start();
-	    if (first) {
-		session = connection.createSession(Session.AcknowledgeMode.AUTO_ACKNOWLEDGE);
-		org.apache.qpid.amqp_1_0.jms.Queue inb = (Queue) context.lookup("inbound");
-        	org.apache.qpid.amqp_1_0.jms.Queue selfQ = (Queue) context.lookup("endpoints");
-        	selfProducer = session.createProducer(selfQ);
-		selfProducer.send(session.createTextMessage("Stub"));
-		consumer = session.createConsumer(inb);
-		org.apache.qpid.amqp_1_0.jms.Message message = consumer.receive(500);
-		LOG.debug("Stub message arrived: "+message);
-		selfProducer.close();
-		consumer.close();
-		session.close();
-		first=false;
-	    }
+            if (first) {
+                session = connection.createSession(Session.AcknowledgeMode.AUTO_ACKNOWLEDGE);
+                org.apache.qpid.amqp_1_0.jms.Queue inb = (Queue) context.lookup("inbound");
+                org.apache.qpid.amqp_1_0.jms.Queue selfQ = (Queue) context.lookup("endpoints");
+                selfProducer = session.createProducer(selfQ);
+                selfProducer.send(session.createTextMessage("Stub"));
+                consumer = session.createConsumer(inb);
+                org.apache.qpid.amqp_1_0.jms.Message message = consumer.receive(500);
+                LOG.debug("Stub message arrived: "+message);   
+                selfProducer.close();
+                consumer.close();
+                session.close();
+                first=false;
+            }
             session = connection.createSession(Session.AcknowledgeMode.CLIENT_ACKNOWLEDGE);
             session.recover();
             LOG.debug("Connected to session");
@@ -915,8 +915,8 @@ public class BasicConnector extends Thread implements Connector {
 
     private class ModificationThread extends Thread {
 
-	int latency = 0;
-	private static final int latencyLimit = 300;		//30 secs
+        int latency = 0;
+        private static final int latencyLimit = 300;            //30 secs
 
         public ModificationThread() {
             super();
@@ -954,20 +954,20 @@ public class BasicConnector extends Thread implements Connector {
                     }
                     Object message = null;
                     message = modification.receive(100);
-		    if (message==null) {
-			latency++;
-			if (latency>latencyLimit) {
-			    latency=0;
-			    session.recover();		//redeliver all non-acknowledged messages
-			}
-			continue;
-		    }
+                    if (message==null) {
+                        latency++;
+                        if (latency>latencyLimit) {
+                            latency=0;
+                            session.recover();          //redeliver all non-acknowledged messages
+                        }
+                        continue;
+                    }
                     if (!(message instanceof TextMessage)) continue;    //skip empty
                     TextMessage textMessage = (TextMessage) message;
                     LOG.debug("Arrived modification message " + textMessage.getSubject());
                     String keyParts[] = textMessage.getSubject().split("\\.");
                     String action = keyParts[0].toLowerCase();
-		    latency = 0;
+                    latency = 0;
                     switch (action) {
                         case "update":
                             boolean error = false;
@@ -1041,7 +1041,7 @@ public class BasicConnector extends Thread implements Connector {
                                         if (!accessor.update(classNames[k], updateHelper)) {
                                             //found an error when update
                                             LOG.error("Found an error when updating " + updateHelper.getUuid() + " class: " + classNames[k]);
-					    error = true;
+                                            error = true;
                                             continue;
                                         }
                                     }
