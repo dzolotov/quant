@@ -22,6 +22,6 @@ public class Main {
     private static EndpointManager endpointManager = new EndpointManager();
 
     public static void main(String[] args) throws Exception {
-        em.start();
+        endpointManager.start();
     }
 }
