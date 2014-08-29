@@ -37,12 +37,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @Author Dmitrii Zolotov <zolotov@gathe.org>, Tikhon Tagunov <tagunov@gathe.org>
  */
-public class EndpointManager {
+public class EndpointManager extends Thread {
 
     private static int ringLength = 256;
 
     Connection operations;
     Connection history;
+
+    private MonitorThread mt;
 
     private static Logger LOG = Logger.getLogger("EndpointManager");
     private ArrayList<String> endpointNames = new ArrayList<>();
@@ -158,7 +160,10 @@ public class EndpointManager {
         }
 
         rt = new ReceiverThread(this);
-        MonitorThread mt = new MonitorThread(this);
+        mt = new MonitorThread(this);
+    }
+
+    public void run() {
         mt.start();
         rt.start();
 

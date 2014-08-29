@@ -22,7 +22,7 @@ public class Main {
     private static EndpointManager endpointManager = new EndpointManager();
 
     public static void main(String[] args) throws Exception {
-        new EndpointManager();
-        System.out.println("Leaving main loop");
+        Thread em = new EndpointManager();
+	em.start();
     }
 }
