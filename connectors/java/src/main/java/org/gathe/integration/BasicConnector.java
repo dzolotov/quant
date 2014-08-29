@@ -123,6 +123,7 @@ public class BasicConnector extends Thread implements Connector {
 		selfProducer.close();
 		consumer.close();
 		session.close();
+		first=false;
 	    }
             session = connection.createSession(Session.AcknowledgeMode.CLIENT_ACKNOWLEDGE);
             session.recover();
