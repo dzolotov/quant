@@ -58,14 +58,11 @@ public class ActionThread extends Thread {
             LOG.debug("Thread reloaded");
             accepted = false;
             this.flags = true;
-//            if (first) {
             try {
                 LOG.debug("Sending message");
                 connector.sendToUno(textMessage, "");
             } catch (JMSException e) {
             }
-//            }
-//            first = false;
             while (this.flags) {
                 LOG.debug("Sleeping for " + timeout + " seconds");
                 this.flags = false;

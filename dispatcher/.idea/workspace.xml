@@ -2,12 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="47b3ad33-890c-4e51-a8cb-708d49b1d972" name="Default" comment="Long messages chunk transfer&#10;Some issues with complex requests resolved&#10;MatchAll API/SPI changes &#10;">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/resources/log4j.xml" afterPath="$PROJECT_DIR$/src/main/resources/log4j.xml" />
     </list>
     <ignored path="dispatcher.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -73,12 +71,22 @@
       <file leaf-file-name="ReceiverThread.java" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.34385383" vertical-offset="8388" max-vertical-offset="15645">
-              <caret line="575" column="50" selection-start-line="575" selection-start-column="50" selection-end-line="575" selection-end-column="50" />
+            <state vertical-scroll-proportion="0.58637875" vertical-offset="2017" max-vertical-offset="15645">
+              <caret line="158" column="69" selection-start-line="158" selection-start-column="69" selection-end-line="158" selection-end-column="69" />
               <folding>
                 <element signature="imports" expanded="true" />
                 <element signature="e#5723#5739#0" expanded="true" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="log4j.xml" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/resources/log4j.xml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="345">
+              <caret line="10" column="32" selection-start-line="10" selection-start-column="32" selection-end-line="10" selection-end-column="32" />
+              <folding />
             </state>
           </provider>
         </entry>
@@ -179,9 +187,10 @@
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/EndpointManager.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/Main.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/MonitorThread.java" />
-        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ResponseMerger.java" />
         <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/WebHandler.java" />
+        <option value="$PROJECT_DIR$/src/main/resources/log4j.xml" />
+        <option value="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
       </list>
     </option>
   </component>
@@ -845,13 +854,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/resources/log4j.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="0">
-          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/resources/dashboard.html">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="0">
@@ -930,10 +932,18 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/resources/log4j.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="345">
+          <caret line="10" column="32" selection-start-line="10" selection-start-column="32" selection-end-line="10" selection-end-column="32" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.34385383" vertical-offset="8388" max-vertical-offset="15645">
-          <caret line="575" column="50" selection-start-line="575" selection-start-column="50" selection-end-line="575" selection-end-column="50" />
+        <state vertical-scroll-proportion="0.58637875" vertical-offset="2017" max-vertical-offset="15645">
+          <caret line="158" column="69" selection-start-line="158" selection-start-column="69" selection-end-line="158" selection-end-column="69" />
           <folding>
             <element signature="imports" expanded="true" />
             <element signature="e#5723#5739#0" expanded="true" />

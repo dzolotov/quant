@@ -543,8 +543,8 @@ public class ReceiverThread extends Thread {
                         try {
                             LOG.error("ESB connection lost. Trying to reconnect...");
                             Thread.sleep(2000);
-                            connected = true;
                             connect();
+                            connected = true;
                         } catch (JMSException e3) {
                             connected = false;
                         }

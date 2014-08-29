@@ -156,26 +156,23 @@ public class BasicConnector extends Thread implements Connector {
     }
 
     private void sendChunk(TextMessage textMessage, String chunk, int number, int count) {
-
         LOG.debug("Sending chunk for " + textMessage + " data length: " + chunk.length() + " " + number + "/" + count);
+        boolean sent = false;
         synchronized (uno) {
-            try {
-                textMessage.setIntProperty("number", number);
-                textMessage.setIntProperty("count", count);
-                textMessage.setText(chunk);
-                textMessage.setDurable(true);
-                uno.send(textMessage);
-                LOG.debug("Sent");
-                textMessage = null;
-            } catch (JMSException e) {
+            while (!sent) {
                 try {
-                    connectESB();
                     textMessage.setIntProperty("number", number);
                     textMessage.setIntProperty("count", count);
                     textMessage.setText(chunk);
-                    LOG.debug("Twin send");
-                } catch (JMSException e2) {
-                    LOG.error("Twin error " + e.getLocalizedMessage());
+                    textMessage.setDurable(true);
+                    uno.send(textMessage);
+                    LOG.debug("Sent");
+                    textMessage = null;
+                } catch (JMSException e) {
+                    try {
+                        Thread.sleep(1000);     //just wait for reconnection
+                    } catch (Exception e2) {
+                    }
                 }
             }
         }
@@ -878,8 +875,8 @@ public class BasicConnector extends Thread implements Connector {
                         try {
                             LOG.debug("Error in connector main message loop. Trying to recover connection.");
                             Thread.sleep(2000);
-                            connected = true;
                             connectESB();
+                            connected = true;
                         } catch (JMSException e2) {
                             connected = false;
                         }

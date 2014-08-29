@@ -8,7 +8,7 @@
         </layout>
     </appender>
     <root>
-        <priority value="debug"/>
+        <priority value="info"/>
         <appender-ref ref="console"/>
     </root>
     <!--<logger name="ru.herzen.integration.Connector" additivity="false">-->
