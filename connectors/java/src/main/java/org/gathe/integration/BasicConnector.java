@@ -959,6 +959,7 @@ public class BasicConnector extends Thread implements Connector {
 			    latency=0;
 			    session.recover();		//redeliver all non-acknowledged messages
 			}
+			continue;
 		    }
                     if (!(message instanceof TextMessage)) continue;    //skip empty
                     TextMessage textMessage = (TextMessage) message;
