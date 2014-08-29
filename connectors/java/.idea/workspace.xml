@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="864ae88d-c01d-4b17-90e1-0c3b813ad499" name="Default" comment="Unifying binding database (with systemid)&#10;Plain uuid binding in datasource&#10;Ignore some fields when matching&#10;Connection pooling (with wrapper)&#10;">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ActionThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ActionThread.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/BasicConnector.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/BasicConnector.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../../dispatcher/src/main/java/org/gathe/integration/ReceiverThread.java" afterPath="$PROJECT_DIR$/../../dispatcher/src/main/java/org/gathe/integration/ReceiverThread.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../../dispatcher/src/main/resources/log4j.xml" afterPath="$PROJECT_DIR$/../../dispatcher/src/main/resources/log4j.xml" />
     </list>
     <ignored path="connector.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -83,8 +80,8 @@
       <file leaf-file-name="BasicConnector.java" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/BasicConnector.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.3528761" vertical-offset="1151" max-vertical-offset="21165">
-              <caret line="98" column="16" selection-start-line="98" selection-start-column="16" selection-end-line="98" selection-end-column="16" />
+            <state vertical-scroll-proportion="0.41924778" vertical-offset="2066" max-vertical-offset="21180">
+              <caret line="165" column="47" selection-start-line="165" selection-start-column="47" selection-end-line="165" selection-end-column="47" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -1301,8 +1298,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/BasicConnector.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.3528761" vertical-offset="1151" max-vertical-offset="21165">
-          <caret line="98" column="16" selection-start-line="98" selection-start-column="16" selection-end-line="98" selection-end-column="16" />
+        <state vertical-scroll-proportion="0.41924778" vertical-offset="2066" max-vertical-offset="21180">
+          <caret line="165" column="47" selection-start-line="165" selection-start-column="47" selection-end-line="165" selection-end-column="47" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>

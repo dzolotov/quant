@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="47b3ad33-890c-4e51-a8cb-708d49b1d972" name="Default" comment="Long messages chunk transfer&#10;Some issues with complex requests resolved&#10;MatchAll API/SPI changes &#10;">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/ActionThread.java" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" afterPath="$PROJECT_DIR$/../connectors/java/src/main/java/org/gathe/integration/BasicConnector.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" afterPath="$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/main/resources/log4j.xml" afterPath="$PROJECT_DIR$/src/main/resources/log4j.xml" />
     </list>
     <ignored path="dispatcher.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -71,8 +68,8 @@
       <file leaf-file-name="ReceiverThread.java" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.58637875" vertical-offset="2017" max-vertical-offset="15645">
-              <caret line="158" column="69" selection-start-line="158" selection-start-column="69" selection-end-line="158" selection-end-column="69" />
+            <state vertical-scroll-proportion="0.31229237" vertical-offset="2017" max-vertical-offset="15645">
+              <caret line="147" column="0" selection-start-line="147" selection-start-column="0" selection-end-line="147" selection-end-column="0" />
               <folding>
                 <element signature="imports" expanded="true" />
                 <element signature="e#5723#5739#0" expanded="true" />
@@ -942,8 +939,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/org/gathe/integration/ReceiverThread.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.58637875" vertical-offset="2017" max-vertical-offset="15645">
-          <caret line="158" column="69" selection-start-line="158" selection-start-column="69" selection-end-line="158" selection-end-column="69" />
+        <state vertical-scroll-proportion="0.31229237" vertical-offset="2017" max-vertical-offset="15645">
+          <caret line="147" column="0" selection-start-line="147" selection-start-column="0" selection-end-line="147" selection-end-column="0" />
           <folding>
             <element signature="imports" expanded="true" />
             <element signature="e#5723#5739#0" expanded="true" />

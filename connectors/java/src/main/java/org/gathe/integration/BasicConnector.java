@@ -168,6 +168,7 @@ public class BasicConnector extends Thread implements Connector {
                     uno.send(textMessage);
                     LOG.debug("Sent");
                     textMessage = null;
+                    sent = true;
                 } catch (JMSException e) {
                     try {
                         Thread.sleep(1000);     //just wait for reconnection
